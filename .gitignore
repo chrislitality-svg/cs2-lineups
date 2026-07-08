@@ -1,0 +1,17 @@
+# 本地归档（旧版本 / 无关项目 / 部署文档 / 未用素材）—— 不上传
+_archive/
+
+# 本地工具配置
+.claude/
+
+# 备份 / 临时
+*.bak
+index.html.bak-*
+_check.mjs
+_gen_*.py
+_gen_*.log
+
+# 系统
+.DS_Store
+Thumbs.db
+desktop.ini
