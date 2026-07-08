@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/banner.svg" alt="cs2-lineups banner" width="100%"></p>
+
 # CS2 战术沙盘
 
 单文件 3D 网页应用，用于规划和复习 CS2 各地图的道具点位（烟/闪/火/雷）。基于 [three.js](https://threejs.org/)，全部逻辑、样式、交互都在一个 `index.html` 里。
