@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 320" font-family="'Segoe UI', system-ui, -apple-system, sans-serif">
+  <defs>
+    <linearGradient id="cs-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#12141c"/><stop offset="1" stop-color="#1c2130"/>
+    </linearGradient>
+    <linearGradient id="cs-title" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FFB347"/><stop offset="1" stop-color="#FF7A00"/>
+    </linearGradient>
+    <pattern id="cs-grid" width="36" height="36" patternUnits="userSpaceOnUse">
+      <path d="M36 0 H0 V36" stroke="#FF7A00" stroke-width="1" opacity="0.06" fill="none"/>
+    </pattern>
+    <filter id="cs-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="1280" height="320" fill="url(#cs-bg)"/>
+  <rect width="1280" height="320" fill="url(#cs-grid)"/>
+
+  <!-- trajectory motif -->
+  <g transform="translate(96,40)">
+    <!-- throw point -->
+    <circle cx="24" cy="210" r="12" fill="#FF7A00"/>
+    <circle cx="24" cy="210" r="21" fill="none" stroke="#FF7A00" stroke-width="2" opacity="0.4"/>
+    <!-- arc -->
+    <path d="M24 210 Q170 -30 300 96" fill="none" stroke="#FFB347" stroke-width="4" stroke-dasharray="3 12" stroke-linecap="round" opacity="0.9"/>
+    <!-- target crosshair -->
+    <g transform="translate(300,96)" filter="url(#cs-glow)">
+      <circle r="26" fill="none" stroke="#FF7A00" stroke-width="3"/>
+      <path d="M0 -34 v16 M0 34 v-16 M-34 0 h16 M34 0 h-16" stroke="#FF7A00" stroke-width="3" stroke-linecap="round"/>
+      <circle r="4" fill="#FF7A00"/>
+    </g>
+  </g>
+
+  <g transform="translate(470,0)">
+    <text x="0" y="134" font-size="70" font-weight="800" fill="url(#cs-title)">cs2-lineups</text>
+    <text x="4" y="178" font-size="25" fill="#E8E2D2" opacity="0.95">CS2 道具点位 3D 可视化查询 — 95+ 标注点位，按点位筛选</text>
+    <text x="4" y="212" font-size="19" fill="#A99E86">3D grenade-lineup lookup for Counter-Strike 2 · 95+ annotated spots</text>
+    <g font-size="17" font-weight="600">
+      <rect x="4" y="234" width="130" height="34" rx="17" fill="#FF7A00" opacity="0.16"/><text x="69" y="256" fill="#FFD8AC" text-anchor="middle">3D lineups</text>
+      <rect x="144" y="234" width="120" height="34" rx="17" fill="#FF7A00" opacity="0.16"/><text x="204" y="256" fill="#FFD8AC" text-anchor="middle">per-spot</text>
+      <rect x="274" y="234" width="128" height="34" rx="17" fill="#FF7A00" opacity="0.16"/><text x="338" y="256" fill="#FFD8AC" text-anchor="middle">PWA offline</text>
+    </g>
+  </g>
+</svg>
