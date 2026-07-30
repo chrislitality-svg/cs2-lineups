@@ -713,6 +713,163 @@ body:has(#landing:not(.hidden)) .sync-badge{display:none!important}
 .tb-search{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:10px;border:1px solid var(--bg4);background:var(--bg2);color:var(--accent);cursor:pointer;margin-right:8px;flex:none}
 .tb-search>svg{width:18px;height:18px}
 @media(max-width:760px){.sp-box{top:0;width:100vw;border-radius:0;height:100%}.sp-results{max-height:none;height:calc(100% - 116px)}}
+
+/* ============================================================
+   2026-07 体验精修（视觉 / 交互 / 动效 / 小屏）
+   分层覆盖：只精修，不改结构；新规则全部后置，同名后者胜
+   ============================================================ */
+
+/* —— 全局质感 —— */
+::selection{background:rgba(63,107,255,.22)}
+::-webkit-scrollbar-thumb:hover{background:rgba(8,145,178,.45)}
+button{-webkit-user-select:none;user-select:none}
+
+/* ===== 着陆页 ===== */
+/* 修复①：视口偏矮时左卡被垂直居中「腰斩」——右侧改内部滚动，左卡始终完整居中 */
+@media(min-width:1181px) and (max-height:940px){
+  .land-content{height:100dvh;min-height:0;overflow:hidden;align-items:center;padding-top:40px;padding-bottom:40px}
+  .land-right{max-height:calc(100dvh - 80px);overflow-y:auto;overflow-x:hidden;padding-right:8px;margin-right:-8px}
+}
+/* 修复②：桌面宽屏下 4 列固定栅格在 1280px 太挤、中文图名被挤换行 —— 改自适应列数 */
+@media(min-width:1181px){
+  .map-grid{grid-template-columns:repeat(auto-fill,minmax(172px,1fr))}
+}
+/* 修复③：图名不再换行断裂（窄了省略号，保持卡片整齐） */
+.mc-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.2px}
+.mc-nrow{gap:8px}
+.mc-go{flex-shrink:0}
+/* 修复④：卡片图改 4:3 比例自适应，不再一刀切 168px 高（iPad 紧凑布局保持原样） */
+.mc-radar{height:auto;aspect-ratio:4/3}
+@media(min-width:761px) and (max-width:1180px){.mc-radar{height:96px;aspect-ratio:auto}}
+/* 卡片微交互：封面缓放 zoom + 徽章上浮，层次更像「可选中的实体」 */
+.mc-radar img:first-child{transition:transform .6s var(--ease)}
+.map-card:hover .mc-radar img:first-child{transform:scale(1.07)}
+.mc-count{transition:transform .25s var(--ease)}
+.map-card:hover .mc-count{transform:translateY(-2px)}
+.map-card:active{transform:translateY(-2px) scale(.985)}
+/* 卡片入场错峰（仅首次渲染；再次渲染由 JS 加 .no-anim 跳过）
+   注意用 backwards 而非 both：both 的填充帧会永久压过 :hover/:active 的 transform，hover 上浮会失效 */
+.map-card{animation:mcCardIn .55s var(--ease) backwards}
+.map-card.no-anim{animation:none}
+@keyframes mcCardIn{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
+/* 选中态：描边呼吸微光，当前选择一眼可见 */
+.mc-sel-ring{animation:selRing 2.6s var(--ease) infinite}
+@keyframes selRing{0%,100%{box-shadow:0 0 0 4px rgba(217,161,78,.20)}50%{box-shadow:0 0 0 7px rgba(217,161,78,.12)}}
+/* 主 CTA：扫光 + 箭头前引，disabled 时不扫光 */
+.deploy-btn{position:relative;overflow:hidden}
+.deploy-btn::after{content:'';position:absolute;top:0;left:-70%;width:45%;height:100%;pointer-events:none;
+  background:linear-gradient(105deg,transparent,rgba(255,255,255,.5),transparent);transform:skewX(-18deg);transition:left .7s var(--ease)}
+.deploy-btn:hover:not(:disabled)::after{left:130%}
+.deploy-btn .dp-arrow{display:inline-block;transition:transform .25s var(--ease)}
+.deploy-btn:hover:not(:disabled) .dp-arrow{transform:translateX(4px)}
+.deploy-btn:active:not(:disabled){transform:translateY(0) scale(.985)}
+/* 备份按钮按压反馈 */
+.bk-btn{transition:border-color .16s var(--ease),background .16s var(--ease),transform .12s var(--ease)}
+.bk-btn:active{transform:scale(.96)}
+/* 着陆页搜索触发器：暖色系 hover 与整体设计一致 */
+.sp-trigger{transition:border-color .18s var(--ease),background .18s var(--ease),box-shadow .18s var(--ease)}
+.sp-trigger:hover{border-color:#dcb26e;background:#fffdf8;box-shadow:0 6px 18px -8px rgba(160,106,54,.35)}
+/* 右栏标题区：序号块微圆角+投影，和卡片体系一致 */
+.rh-no{border-radius:9px;box-shadow:0 3px 8px -2px rgba(43,33,23,.4)}
+
+/* ===== 战术视图 · 顶栏：全宽渐变条 → 悬浮玻璃工具条（只盖地图区，不压右侧面板） ===== */
+.top-bar{top:10px!important;left:12px!important;right:calc(var(--panel-w,0px) + 12px)!important;
+  padding:8px 10px!important;gap:8px;border-radius:16px;
+  background:linear-gradient(180deg,rgba(255,255,255,.94),rgba(255,255,255,.84))!important;
+  border:1px solid var(--glass-bd)!important;border-bottom:1px solid var(--glass-bd)!important;
+  box-shadow:0 10px 30px rgba(15,23,42,.13)!important;
+  backdrop-filter:blur(24px) saturate(1.6)!important;-webkit-backdrop-filter:blur(24px) saturate(1.6)!important}
+/* 道具筛选组：融入工具条；激活态用品牌蓝描边，不再是「灰图标消失术」 */
+.type-filter{background:rgba(15,23,42,.04);box-shadow:none;border-color:transparent;padding:3px}
+.tf-btn{width:38px;height:38px;opacity:.4;transition:all .18s var(--ease)}
+.tf-btn:hover{opacity:.85;filter:none;background:rgba(255,255,255,.75)}
+.tf-btn.active{background:#fff;box-shadow:0 0 0 1.5px rgba(63,107,255,.38),0 2px 8px rgba(63,107,255,.16)}
+.tf-btn:active{transform:scale(.92)}
+.tf-btn img{width:21px;height:21px}
+/* 顶栏控件统一按压反馈 */
+.tb-btn:active,.tb-search:active{transform:scale(.94)}
+.tb-search{transition:all .2s var(--ease)}
+.tb-search:hover{background:var(--brand-soft);border-color:rgba(63,107,255,.35)}
+/* 阵营切换：激活胶囊加微投影，状态更「实」 */
+.faction-btn.ct-on{box-shadow:inset 0 0 0 1px rgba(37,99,235,.25)}
+.faction-btn.t-on{box-shadow:inset 0 0 0 1px rgba(217,119,6,.28)}
+.faction-btn.sty-on{box-shadow:inset 0 0 0 1px rgba(79,70,229,.25)}
+.faction-btn:not([disabled]):active{transform:scale(.94)}
+
+/* ===== 右侧面板精修 ===== */
+/* 面板折叠拉手：更高对比、更像「把手」 */
+#panelEdgeBtn{width:24px;height:64px;background:rgba(255,255,255,.94);
+  box-shadow:-4px 0 18px rgba(15,23,42,.16);border:1px solid var(--glass-bd);border-right:none}
+/* 统计行：数字统一等宽数字体，扫读更稳 */
+.idle-statrow{box-shadow:0 2px 12px rgba(15,23,42,.05)}
+.ist b{font-family:var(--mono);font-size:16px;letter-spacing:-.5px}
+.ist-u{font-variant-numeric:tabular-nums}
+/* 道具瓷片：hover 加品牌色描边，可点感更强 */
+.idle-item{transition:transform .18s var(--ease),box-shadow .18s var(--ease),border-color .18s var(--ease)}
+.idle-item:hover{border-color:rgba(63,107,255,.4)}
+.idle-item:active{transform:scale(.97)}
+/* 分组标题：与内容拉开层级 */
+.op-grouplabel{margin-top:14px}
+/* 侧栏清单错峰入场（前 8 项）；同样改 backwards，修复原 both 填充导致 hover 位移失效的问题 */
+.util-item{animation:slideIn .4s var(--ease) backwards}
+.util-item:nth-child(1){animation-delay:.02s}.util-item:nth-child(2){animation-delay:.05s}
+.util-item:nth-child(3){animation-delay:.08s}.util-item:nth-child(4){animation-delay:.11s}
+.util-item:nth-child(5){animation-delay:.14s}.util-item:nth-child(6){animation-delay:.17s}
+.util-item:nth-child(7){animation-delay:.20s}.util-item:nth-child(n+8){animation-delay:.23s}
+/* 投掷方式横幅：加轻微高光，和图片区拉开 */
+.throw-banner{background:linear-gradient(135deg,#4a78ff 0%,#3454D1 100%);position:relative;overflow:hidden}
+.throw-banner::after{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:rgba(255,255,255,.35)}
+/* 详情图片 hover 轻微放大提示可点 */
+.ds-img img{transition:opacity .35s var(--ease),transform .5s var(--ease)}
+.ds-img.loaded:hover img{transform:scale(1.03)}
+
+/* ===== 动效补全：之前「瞬现」的浮层全部补上入场 ===== */
+/* 搜索命令面板 */
+#searchPal.open{animation:spFade .18s var(--ease)}
+#searchPal.open .sp-box{animation:spPop .28s var(--ease)}
+@keyframes spFade{from{opacity:0}to{opacity:1}}
+@keyframes spPop{from{opacity:0;transform:translate(-50%,-12px) scale(.97)}to{opacity:1;transform:translate(-50%,0) scale(1)}}
+.sp-row{transition:background .12s var(--ease)}
+/* 灯箱图片 */
+.lightbox img{animation:lbIn .32s var(--ease)}
+@keyframes lbIn{from{opacity:0;transform:scale(.93)}to{opacity:1;transform:scale(1)}}
+/* 右键菜单：从触发角弹出 */
+.ctx-menu{transform-origin:top left}
+.ctx-menu.open{animation:ctxIn .16s var(--ease)}
+@keyframes ctxIn{from{opacity:0;transform:scale(.92) translateY(-4px)}to{opacity:1;transform:none}}
+/* 空数据提示 */
+.empty-3d.show .e3-box{animation:lcPop .35s var(--ease)}
+/* 沙盘 ↔ 着陆页 交叉淡入淡出：gameView 离场改为淡出（原来 display 瞬隐，着陆页淡入前会闪白屏） */
+#gameView{display:block!important;opacity:0;pointer-events:none;visibility:hidden;
+  transition:opacity .45s var(--ease),visibility 0s linear .45s}
+#gameView.active{opacity:1;pointer-events:auto;visibility:visible;animation:none;
+  transition:opacity .45s var(--ease),visibility 0s}
+/* 悬浮提示跟随更顺滑 */
+.dot-tip{transition:opacity .2s var(--ease),transform .2s var(--ease)}
+/* 加载页：logo 呼吸 + 进度条微光 */
+.ld-logo{animation:ldBreath 2.4s var(--ease) infinite}
+@keyframes ldBreath{0%,100%{opacity:.72}50%{opacity:1}}
+.ld-bar{box-shadow:0 0 0 1px rgba(15,23,42,.05),0 2px 10px rgba(63,107,255,.10)}
+
+/* ===== 小屏适配（≤760px） ===== */
+@media(max-width:760px){
+  /* 悬浮工具条收窄，控件整体缩小一号，换行不炸 */
+  .top-bar{left:8px!important;right:8px!important;top:8px!important;padding:6px 8px!important;gap:6px!important;border-radius:14px}
+  .tf-btn{width:33px;height:33px}.tf-btn img{width:18px;height:18px}
+  .tb-btn{height:32px;padding:0 10px;font-size:11px}
+  .tb-search{width:32px;height:32px;margin-right:2px}
+  .back-btn{width:32px;height:32px}
+  .faction-btn{padding:6px 10px;font-size:11px}
+  .top-title{font-size:13px}.top-tag{font-size:10px;margin-top:1px}
+  /* 着陆页：头部说明收窄 */
+  .land-content{padding:26px 16px;gap:26px}
+  .lcard{padding:28px 22px 24px}
+  .land-title{font-size:32px}
+  /* 底部地名提示条避免顶栏重叠 */
+  .place-hint{top:auto;bottom:calc(18px + var(--safe-b));max-width:92vw;flex-wrap:wrap;justify-content:center}
+}
+/* 超宽屏：右栏面板上限略放宽，地图仍占黄金比例大头 */
+@media(min-width:2000px){:root{--panel-w:clamp(340px,30vw,560px)}}
 </style>
 </head>
 <body>
@@ -1326,17 +1483,18 @@ function renderLanding(){
   // 首页始终有一张被选中（默认选第一张有数据的地图，没有就选第一张），CTA 才有意义
   if(!curMap)curMap=MAPS.find(m=>data.some(d=>d.map===m))||MAPS[0];
   let html='';
+  const firstPaint=!landingAnimated; // 仅首次渲染播入场错峰；点选重渲染时保持静止，避免闪动
   MAPS.forEach((m,i)=>{
     const count=data.filter(d=>d.map===m).length;
     const sel=curMap===m;
-    html+=`<div class="map-card${sel?' selected':''}${!count?' no-data':''}" onclick="selectMap('${m}')" onmouseenter="preloadMapRadar('${m}')">
+    html+=`<div class="map-card${sel?' selected':''}${!count?' no-data':''}${firstPaint?'':' no-anim'}" style="animation-delay:${Math.min(i*45,360)}ms" onclick="selectMap('${m}')" onmouseenter="preloadMapRadar('${m}')">
       <div class="mc-radar">
         <img src="maps/cover/${m}.webp?_a=${ASSET_VER}" alt="${esc(m)}" loading="lazy" onerror="this.onerror=null;this.src='maps/${m}.webp?_a=${ASSET_VER}'">
         <img class="mc-logo" src="maps/logo/${m}.webp?_a=${ASSET_VER}" alt="" loading="lazy" onerror="this.style.display='none'">
         <span class="mc-count">${count?count+' 条':'待录入'}</span>
       </div>
       <div class="mc-nrow"><span class="mc-name">${esc(m)}</span><span class="mc-go">进入 →</span></div>
-      ${sel?'<div class="mc-sel-ring"></div><span class="mc-sel-tag">已选</span>':''}
+      ${sel?'<div class="mc-sel-ring"></div><span class="mc-sel-tag">✓ 已选</span>':''}
     </div>`;
   });
   $('mapGrid').innerHTML=html;
@@ -1372,7 +1530,7 @@ function updateDeployBtn(){
   const btn=$('deployBtn');if(!btn)return;
   if(curMap){
     btn.disabled=false;
-    btn.innerHTML='<span>进入沙盘</span><span class="dp-arrow">→</span>';
+    btn.innerHTML='<span>进入沙盘</span><span class="dp-sep">·</span><span>'+esc(curMap)+'</span><span class="dp-arrow">→</span>';
   }else{
     btn.disabled=true;btn.textContent='先选择一张地图';
   }
@@ -1601,18 +1759,19 @@ function getHeightAt(mx,my){
    地图纹理重绘引擎：把雷达图重绘成 Apple 地图「简约标准」浅色风
    —— 全部像素运算放进 Web Worker，主线程不卡；成品纹理 LRU 缓存
    ============================================================ */
-/* Apple 浅色调色板（克制低饱和：墨蓝结构 → 暖纸地面 → 冷中性外场 + 锐利描边） */
+/* Apple 浅色调色板（克制低饱和：墨蓝结构 → 暖纸地面 → 冷中性外场 + 锐利描边）
+   2026-07 精修：结构色加深、过渡灰拉开、描边更锐 —— 解决大屏上「白茫茫一片」的观感 */
 const APPLE={
   whiteThresh:216, outsideMix:0.80,
-  outside:[230,234,241],                 // 外场（不可行走区）冷中性，向后递退，让可玩区浮现
+  outside:[228,232,240],                 // 外场（不可行走区）冷中性，向后递退，让可玩区浮现
   ramp:[                                 // 亮度 → 颜色渐变（暗=结构，亮=地面）
-    {at:0.00,c:[58,72,88]},              // 墙体/结构  #3A4858 墨蓝
-    {at:0.32,c:[150,159,171]},           // 过渡冷灰
-    {at:0.58,c:[212,208,199]},           // 暖浅灰
-    {at:0.80,c:[237,234,228]},           // 暖纸
+    {at:0.00,c:[47,59,76]},              // 墙体/结构  #2F3B4C 深墨蓝（原 #3A4858，加深一档）
+    {at:0.32,c:[126,136,152]},           // 过渡冷灰（拉开与地面的明度差）
+    {at:0.58,c:[204,200,190]},           // 暖浅灰
+    {at:0.80,c:[236,233,226]},           // 暖纸
     {at:1.00,c:[248,246,241]}            // 纸白  #F8F6F1
   ],
-  edge:[40,52,64], edgeThr:30, edgeStrength:1.25  // 描边墨色/阈值/强度（深、低阈、锐）
+  edge:[34,46,60], edgeThr:26, edgeStrength:1.45  // 描边墨色/阈值/强度（更深、更低阈、更锐）
 };
 /* —— 三个纯函数：既在主线程兜底直接调用，又 toString() 拼进 Worker 源码（零重复）—— */
 function _rampLUT(stops){
@@ -2475,23 +2634,60 @@ const MAN_GEO={}; let _manMat=null;
 function manMat(){ if(!_manMat){_manMat=new THREE.MeshLambertMaterial({vertexColors:true,flatShading:true});_manMat.userData={shared:true};} return _manMat; }
 function buildSoldierGeo(side){
   const parts=[];
-  const PRIM=side==='CT'?0x3f72d8:0xe2801f, DARK=side==='CT'?0x21386e:0x713c14, GUN=0x23272e, SKIN=0xe7b489, BOOT=0x2a2d33;
-  function box(w,h,d,color,x,y,z,rx){
-    const g=new THREE.BoxGeometry(w,h,d);
-    if(rx)g.rotateX(rx); g.translate(x,y,z);
+  const PRIM=side==='CT'?0x3f72d8:0xe2801f, DARK=side==='CT'?0x21386e:0x713c14, UNI=side==='CT'?0x4b5f70:0x8a7b5c,
+        GUN=0x23272e, GUNL=0x3a4048, SKIN=0xe7b489, BOOT=0x2a2d33, GLOVE=0x1b1e22;
+  function bake(g,color){
     const c=new THREE.Color(color),n=g.attributes.position.count,a=new Float32Array(n*3);
     for(let i=0;i<n;i++){a[i*3]=c.r;a[i*3+1]=c.g;a[i*3+2]=c.b;}
     g.setAttribute('color',new THREE.BufferAttribute(a,3)); parts.push(g);
   }
-  box(.20,.10,.28, BOOT,-.10,.05,.05);   box(.20,.10,.24, BOOT, .11,.05,-.02);   // 靴
-  box(.16,.40,.18, DARK,-.10,.26,.02);   box(.16,.40,.18, DARK, .11,.26,-.01);   // 腿
-  box(.40,.17,.25, DARK, 0,.48,.01);                                             // 胯
-  box(.42,.42,.27, PRIM, 0,.70,.03, .16);                                        // 躯干(微前倾)
-  box(.48,.17,.28, DARK, 0,.90,.05, .16);                                        // 宽肩护甲
-  box(.22,.22,.22, SKIN, 0,1.00,.06);    box(.30,.12,.30, DARK, 0,1.085,.05);    // 头 + 宽扁头盔(俯视可见)
-  box(.11,.30,.11, PRIM,-.25,.80,.12, 1.15); box(.11,.30,.11, PRIM, .25,.80,.12, 1.15); // 双臂前伸端枪
-  box(.13,.13,.16, DARK, .06,.74,.18);   box(.10,.10,.54, GUN, .06,.74,.44);     // 枪机 + 枪管(指向+Z)
-  box(.07,.17,.10, GUN, .06,.65,.30);                                            // 弹匣
+  function box(w,h,d,color,x,y,z,rx){
+    const g=new THREE.BoxGeometry(w,h,d);
+    if(rx)g.rotateX(rx); g.translate(x,y,z);
+    bake(g,color);
+  }
+  function dome(r,color,x,y,z){
+    const g=new THREE.SphereGeometry(r,8,5,0,Math.PI*2,0,Math.PI/2);
+    g.translate(x,y,z);
+    bake(g,color);
+  }
+  // 用两端点搭骨架段(肢体)：几何长轴与端点连线严格重合，不靠手感估旋转角度，关节严丝合缝不悬空
+  function limb(w,d,color,p0,p1){
+    const dir=new THREE.Vector3(p1[0]-p0[0],p1[1]-p0[1],p1[2]-p0[2]);
+    const len=dir.length(); dir.normalize();
+    const g=new THREE.BoxGeometry(w,len,d);
+    g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),dir));
+    g.translate((p0[0]+p1[0])/2,(p0[1]+p1[1])/2,(p0[2]+p1[2])/2);
+    bake(g,color);
+  }
+  box(.20,.10,.28, BOOT,-.10,.05,.05);   box(.20,.10,.24, BOOT, .11,.05,-.02);    // 靴
+  box(.155,.19,.17, UNI,-.10,.155,.02);  box(.155,.19,.17, UNI, .11,.155,-.02);  // 小腿
+  box(.165,.035,.06, PRIM,-.10,.267,.11); box(.165,.035,.06, PRIM, .11,.267,.04);// 护膝
+  box(.16,.175,.19, DARK,-.10,.3725,0);  box(.16,.175,.19, DARK, .11,.3725,-.03);// 大腿
+  box(.36,.17,.24, DARK, 0,.485,.01);                                            // 胯
+  box(.32,.15,.20, DARK, 0,.60,.02);                                             // 腰腹(制服色，比胸甲窄→收腰)
+  box(.40,.24,.25, PRIM, 0,.755,.04, .13);                                       // 胸甲(队伍色，微前倾)
+  box(.26,.045,.03, DARK, 0,.80,.165);                                           // 胸挂弹匣条
+  box(.46,.14,.26, DARK, 0,.885,.06, .13);                                       // 肩甲
+  box(.09,.06,.09, SKIN, 0,.935,.05);                                            // 颈
+  box(.20,.20,.20, SKIN, 0,1.025,.06);                                           // 头
+  box(.30,.03,.28, DARK, 0,1.115,.05);                                          // 头盔沿
+  dome(.155, DARK, 0,1.115,.04);                                                 // 头盔圆顶(半球，不再是方盒)
+  box(.19,.045,.05, side==='CT'?0x1a2230:0x2a2018, 0,1.075,.155);                // 护目镜/面罩条
+  limb(.075,.075, PRIM, [.20,.85,.10],[.12,.745,.15]);                           // 右臂上段(扳机手，肩→肘)
+  limb(.065,.065, PRIM, [.12,.745,.15],[.065,.70,.19]);                          // 右臂下段(肘→握把)
+  box(.075,.075,.09, GLOVE, .065,.695,.20);                                      // 扳机手
+  limb(.075,.075, PRIM, [-.20,.85,.10],[-.09,.735,.24]);                         // 左臂上段(托腮/前握把手，肩→肘)
+  limb(.065,.065, PRIM, [-.09,.735,.24],[.055,.685,.42]);                        // 左臂下段(肘→前护木)
+  box(.075,.075,.09, GLOVE, .055,.68,.43);                                       // 前握把手
+  box(.045,.075,.09, GUN, .06,.755,.09);                                         // 枪托
+  box(.10,.11,.15, GUN, .06,.735,.20);                                           // 机匣
+  box(.038,.05,.085,GUN, .06,.805,.22);                                          // 瞄具
+  box(.045,.10,.045,GUN, .06,.665,.15);                                          // 手枪握把
+  box(.06,.16,.09, GUN, .06,.615,.24);                                           // 弹匣
+  box(.075,.075,.34,GUNL, .06,.735,.42);                                        // 护木(包住枪管)
+  box(.035,.035,.10,GUN, .06,.735,.64);                                          // 枪口
+  box(.035,.09,.035,GUN, .055,.685,.40);                                         // 竖直前握把
   const m=BufferGeometryUtils.mergeGeometries(parts,false); m.scale(.18,.18,.18); m.computeVertexNormals();
   m.userData={shared:true};
   return m;
@@ -2552,8 +2748,15 @@ function animateFx(fxg,time,intro){
     if(ph<.45){const k=ph/.45;
       fx.core.scale.setScalar(.42*(1+k*2.4));fx.core.material.opacity=.98*(1-k)*intro;
       fx.halo.scale.setScalar(.7*(1+k*2.6));fx.halo.material.opacity=.55*(1-k)*intro;
+      if(fx.spikes)fx.spikes.forEach(sp=>{
+        const L=sp.userData._len*k;
+        sp.scale.set(1,Math.max(L,.001),1);
+        sp.position.set(Math.cos(sp.userData._ang)*L*.5,.025,Math.sin(sp.userData._ang)*L*.5);
+        sp.material.opacity=(1-k)*intro;
+      });
     }else{fx.core.scale.setScalar(.42);fx.core.material.opacity=.9*intro;
-      fx.halo.scale.setScalar(.7);fx.halo.material.opacity=.38*intro;}
+      fx.halo.scale.setScalar(.7);fx.halo.material.opacity=.38*intro;
+      if(fx.spikes)fx.spikes.forEach(sp=>sp.material.opacity=0);}
   }else if(fx.type==='he'){
     // 爆点：核心瞬间爆闪 + 冲击波环快速外扩 + 火星四射，然后归于一点
     const ph=(time+fx.phase)%2.0;
@@ -2570,10 +2773,21 @@ function animateFx(fxg,time,intro){
         if(!isPlayableMapPos(fxg.position.x+sp.position.x,fxg.position.z+sp.position.z))op=0;
         sp.material.opacity=op;
       });
+      if(fx.debris)fx.debris.forEach(db=>{
+        const dd=k*.62; // 比火星飞得稍远、稍慢消失，看着有分量
+        db.position.x=Math.cos(db.userData._a)*dd;
+        db.position.z=Math.sin(db.userData._a)*dd;
+        db.position.y=.08+Math.sin(k*Math.PI)*.22;
+        db.rotation.x=db.userData._rx+k*8; db.rotation.y=db.userData._ry+k*6;
+        let op=(1-k*.7)*intro;
+        if(!isPlayableMapPos(fxg.position.x+db.position.x,fxg.position.z+db.position.z))op=0;
+        db.material.opacity=op;
+      });
     }else{
       fx.core.scale.set(.34,.34,1);fx.core.material.opacity=.14*intro;
       fx.ring.material.opacity=0;
       if(fx.sparks)fx.sparks.forEach(sp=>sp.material.opacity=0);
+      if(fx.debris)fx.debris.forEach(db=>db.material.opacity=0);
     }
   }
 }
@@ -2595,11 +2809,55 @@ function makeLandMark(color){
   return g;
 }
 
-/* 飞行中的道具：用该道具的图标(烟/闪/火/雷)做小精灵，一眼看清扔的是什么，而不是模糊的球 */
+/* 飞行中的道具：程序化低多边形手雷模型(参照 imgs/icon_{smoke,flash,fire,he}.png 重建外形/配色)，
+   一眼看清扔的是什么、还会跟着抛物线翻滚，而不是一张永远正对镜头的贴图。
+   合并成单几何+共享材质(同 buildSoldierGeo 套路)，四种类型各缓存一份。 */
+const GREN_GEO={}; let _grenMat=null;
+function grenMat(){ if(!_grenMat){_grenMat=new THREE.MeshLambertMaterial({vertexColors:true,flatShading:true});_grenMat.userData={shared:true};} return _grenMat; }
+function buildGrenadeGeo(cls){
+  const parts=[];
+  function add(g,color,x,y,z,rx,ry,rz){
+    if(g.index)g=g.toNonIndexed(); // 混用多种 primitive(部分带 index/部分不带)必须先统一成 non-indexed 才能 mergeGeometries
+    if(rx)g.rotateX(rx); if(ry)g.rotateY(ry); if(rz)g.rotateZ(rz);
+    g.translate(x,y,z);
+    const c=new THREE.Color(color),n=g.attributes.position.count,a=new Float32Array(n*3);
+    for(let i=0;i<n;i++){a[i*3]=c.r;a[i*3+1]=c.g;a[i*3+2]=c.b;}
+    g.setAttribute('color',new THREE.BufferAttribute(a,3)); parts.push(g);
+  }
+  if(cls==='smoke'){
+    add(new THREE.CylinderGeometry(.045,.045,.10,12), 0x2c3038, 0,.05,0);                       // 罐体(暗铁灰)
+    add(new THREE.CylinderGeometry(.048,.048,.024,12), 0x1f7c8c, 0,.03,0);                      // 青色环带(半径微凸出罐体，避免共面撞色)
+    add(new THREE.CylinderGeometry(.048,.048,.018,12), 0xcfd4d8, 0,.095,0);                     // 近顶浅灰环
+    add(new THREE.CylinderGeometry(.032,.045,.026,12), 0x23262d, 0,.113,0);                     // 弧顶盖
+    add(new THREE.TorusGeometry(.026,.007,6,12), 0xa7adb3, 0,.148,.02, Math.PI*.42,0,.3);       // 拉环
+    add(new THREE.BoxGeometry(.016,.075,.016), 0xa7adb3, .036,.115,0, 0,0,-.22);                // 压把
+  } else if(cls==='flash'){
+    add(new THREE.CylinderGeometry(.048,.048,.05,12), 0xd4a83a, 0,.025,0);                      // 金色环带(下)
+    add(new THREE.CylinderGeometry(.043,.048,.075,12), 0x16171a, 0,.0875,0);                    // 黑色弹身
+    add(new THREE.CylinderGeometry(.046,.046,.014,12), 0x8a8f96, 0,.133,0);                     // 细钢环(半径微凸出弹身)
+    add(new THREE.CylinderGeometry(.03,.042,.022,12), 0x2a2c30, 0,.153,0);                      // 顶盖
+    add(new THREE.TorusGeometry(.024,.007,6,12), 0x9aa0a6, 0,.182,.018, Math.PI*.42,0,.3);      // 拉环
+    add(new THREE.BoxGeometry(.015,.07,.015), 0x9aa0a6, .034,.148,0, 0,0,-.22);                 // 压把
+  } else if(cls==='fire'){
+    add(new THREE.CylinderGeometry(.05,.058,.11,12), 0x3a4a28, 0,.055,0);                       // 玻璃瓶身(墨绿)
+    add(new THREE.CylinderGeometry(.06,.06,.05,12), 0xd9772e, 0,.05,0);                         // 橙色标签环(半径大于瓶身，避免被吃掉)
+    add(new THREE.CylinderGeometry(.022,.05,.035,12), 0x3a4a28, 0,.1275,0);                     // 瓶肩收口
+    add(new THREE.CylinderGeometry(.014,.014,.05,10), 0x3a4a28, 0,.17,0);                       // 瓶颈
+    add(new THREE.ConeGeometry(.022,.045,8), 0xff8a2e, 0,.215,0);                               // 火焰下段(橙)
+    add(new THREE.ConeGeometry(.013,.03,8), 0xffce54, 0,.255,0);                                // 火焰尖(亮黄)
+  } else { // he
+    add(new THREE.IcosahedronGeometry(.06,1), 0x5b6a3d, 0,.06,0);                               // 菠萝弹体(棱面天然像格纹)
+    add(new THREE.CylinderGeometry(.025,.03,.03,10), 0x1c1e22, 0,.135,0);                       // 引信黑座
+    add(new THREE.TorusGeometry(.024,.006,6,12), 0xc93a3a, 0,.162,.016, Math.PI*.36,0,.2);      // 红拉环
+    add(new THREE.BoxGeometry(.014,.065,.015), 0x9c2c2c, .034,.125,0, 0,0,-.26);                // 红压把
+  }
+  const m=BufferGeometryUtils.mergeGeometries(parts,false); m.computeVertexNormals();
+  m.userData={shared:true};
+  return m;
+}
+function grenadeGeo(cls){ if(!GREN_GEO[cls])GREN_GEO[cls]=buildGrenadeGeo(cls); return GREN_GEO[cls]; }
 function makeGrenade(d){
-  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:getUtilIconTex(utilCls(d.util)),transparent:true,depthWrite:false}));
-  sp.scale.set(.18,.18,1);
-  return sp;
+  return new THREE.Mesh(grenadeGeo(utilCls(d.util)),grenMat());
 }
 
 function buildLandFx(d){
@@ -2674,15 +2932,25 @@ function buildLandFx(d){
     }
     g.userData._fx={type:'fire',glow,edge,flames,smokes};
   }else if(cls==='flash'){
-    // 闪光：核心光斑 + 光晕，周期爆闪
+    // 闪光：核心光斑 + 光晕 + 低多边形放射尖刺(躺平辐射，像经典闪光图标)，周期爆闪
     const core=new THREE.Sprite(new THREE.SpriteMaterial({map:t.spark,transparent:true,depthWrite:false,opacity:1}));
     core.scale.set(.42,.42,1);core.position.y=.32;
     const halo=new THREE.Sprite(new THREE.SpriteMaterial({map:t.puff,color:0xffd84d,transparent:true,depthWrite:false,opacity:.4}));
     halo.scale.set(.7,.7,1);halo.position.y=.32;
+    const spikes=[];
+    const SPN=8;
+    for(let i=0;i<SPN;i++){
+      const spike=new THREE.Mesh(new THREE.ConeGeometry(.05,1,3),new THREE.MeshBasicMaterial({color:0xfff2c0,transparent:true,opacity:0}));
+      spike.rotation.z=-Math.PI/2; // 锥尖转成水平朝外
+      spike.rotation.y=-(i/SPN*Math.PI*2+(i%2?.18:0));
+      spike.position.y=.025;
+      spike.userData._ang=i/SPN*Math.PI*2+(i%2?.18:0); spike.userData._len=(i%2)?.30:.42;
+      spikes.push(spike);g.add(spike);
+    }
     g.add(core,halo);
-    g.userData._fx={type:'flash',core,halo,phase:Math.random()*3};
+    g.userData._fx={type:'flash',core,halo,spikes,phase:Math.random()*3};
   }else{
-    // 高爆雷：一个明确的"爆点" —— 橙红爆闪核心 + 快速冲击波环 + 四射火星
+    // 高爆雷：一个明确的"爆点" —— 橙红爆闪核心 + 快速冲击波环 + 四射火星 + 低多边形焦黑碎屑
     const core=new THREE.Sprite(new THREE.SpriteMaterial({map:t.spark,color:0xffb060,transparent:true,depthWrite:false,opacity:1}));
     core.scale.set(.5,.5,1);core.position.y=.18;
     const ring=new THREE.Mesh(new THREE.RingGeometry(.05,.11,36),new THREE.MeshBasicMaterial({color:0xff5530,transparent:true,opacity:.9,side:THREE.DoubleSide,depthWrite:false}));
@@ -2695,8 +2963,15 @@ function buildLandFx(d){
       sp.userData._a=i/SN*Math.PI*2+Math.random()*.4;
       sparks.push(sp);g.add(sp);
     }
+    const debris=[];
+    const DN=8;
+    for(let i=0;i<DN;i++){
+      const deb=new THREE.Mesh(new THREE.TetrahedronGeometry(.035+((i*3)%3)*.008),new THREE.MeshLambertMaterial({color:0x2a2018,flatShading:true,transparent:true,opacity:0}));
+      deb.userData._a=i/DN*Math.PI*2+((i*5)%3)*.3; deb.userData._rx=i*1.7; deb.userData._ry=i*1.1;
+      debris.push(deb);g.add(deb);
+    }
     g.add(core,ring);
-    g.userData._fx={type:'he',core,ring,sparks,phase:Math.random()*2};
+    g.userData._fx={type:'he',core,ring,sparks,debris,phase:Math.random()*2};
   }
   return g;
 }
@@ -2827,16 +3102,6 @@ function onCanvasDrop(e){
     saveSpots();renderDots3D();
     openEditForm(null,{spotId:sid}); // 立即加第一颗道具
   }
-}
-
-const UTIL_ICONS = {};
-function getUtilIconTex(type){
-  if(!UTIL_ICONS[type]){
-    UTIL_ICONS[type] = new THREE.TextureLoader().load(`imgs/icon_${type}.png`);
-    UTIL_ICONS[type].colorSpace = THREE.SRGBColorSpace;
-    UTIL_ICONS[type].userData = {shared:true}; // 共享纹理，clearDots→disposeObj 不释放
-  }
-  return UTIL_ICONS[type];
 }
 
 /* 点位圈标记（大小=spot.size，颜色=spot.util；一个圈 = 一个投掷点位，挂多颗道具） */
