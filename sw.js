@@ -1,7 +1,7 @@
 /* CS2 战术沙盘 · Service Worker
    离线壳 + 缓存 three.js / 雷达底图 / 字体；云同步(/cs2/sync)永远走网络，绝不缓存。
    换缓存策略时把 CACHE 版本号 +1 即可让旧缓存自动清掉。 */
-const CACHE = 'cs2tac-sw-v3'; // bump: three 0.165 -> 0.184 (latest)
+const CACHE = 'cs2tac-sw-v4'; // bump: Tactical Deck v1 改版（新台面底图 + 去 Google Fonts）
 const SHELL = ['./', './index.html', './manifest.json'];
 
 self.addEventListener('install', e => {

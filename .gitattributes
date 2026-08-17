@@ -1,0 +1,5 @@
+# 生产上的文件是 LF。锁死行尾，免得在 Windows 上 clone 出 CRLF，
+# 部署前跟生产做字节比对时出现「整文件都变了」的假告警。
+* text=auto eol=lf
+*.webp binary
+*.png binary
