@@ -3087,62 +3087,105 @@ function buildArc(d){
 const MAN_GEO={}; let _manMat=null;
 function manMat(){ if(!_manMat){_manMat=new THREE.MeshLambertMaterial({vertexColors:true,flatShading:true});_manMat.userData={shared:true};} return _manMat; }
 function buildSoldierGeo(side){
+  /* 设计前提：这个模型在 10 单位的地图上只有 0.21 高，屏幕上很小。
+     所以做法是「先保剪影、再补细节」——用 6/8 棱柱代替薄板做四肢躯干，
+     远看是圆的、近看有棱；队伍色铺成大色块而不是细条，缩到 20px 也认得出阵营。 */
   const parts=[];
-  const PRIM=side==='CT'?0x3f72d8:0xe2801f, DARK=side==='CT'?0x21386e:0x713c14, UNI=side==='CT'?0x4b5f70:0x8a7b5c,
-        GUN=0x23272e, GUNL=0x3a4048, SKIN=0xe7b489, BOOT=0x2a2d33, GLOVE=0x1b1e22;
+  const C = side==='CT'
+    ? {PRIM:0x3f72d8, DEEP:0x24427f, VEST:0x2b3f63, PANT:0x39506b, ACC:0x6f9ae8, VISOR:0x121a26}
+    : {PRIM:0xe08a2a, DEEP:0x8a4d12, VEST:0x6b4a24, PANT:0x7d6a45, ACC:0xf5b25c, VISOR:0x241a12};
+  const GUN=0x24282f, GUNL=0x3c434c, SKIN=0xe3b087, BOOT=0x24272c, GLOVE=0x1a1d21, STRAP=0x171a1f;
+
   function bake(g,color){
     const c=new THREE.Color(color),n=g.attributes.position.count,a=new Float32Array(n*3);
     for(let i=0;i<n;i++){a[i*3]=c.r;a[i*3+1]=c.g;a[i*3+2]=c.b;}
     g.setAttribute('color',new THREE.BufferAttribute(a,3)); parts.push(g);
   }
-  function box(w,h,d,color,x,y,z,rx){
-    const g=new THREE.BoxGeometry(w,h,d);
-    if(rx)g.rotateX(rx); g.translate(x,y,z);
-    bake(g,color);
+  const T=g=>g.index?g.toNonIndexed():g;
+  function put(g,color,x,y,z,rx,ry,rz,sx,sy,sz){
+    g=T(g);
+    if(sx!==undefined)g.scale(sx,sy===undefined?1:sy,sz===undefined?1:sz);
+    if(rz)g.rotateZ(rz); if(rx)g.rotateX(rx); if(ry)g.rotateY(ry);
+    g.translate(x,y,z); bake(g,color);
   }
-  function dome(r,color,x,y,z){
-    const g=new THREE.SphereGeometry(r,8,5,0,Math.PI*2,0,Math.PI/2);
-    g.translate(x,y,z);
-    bake(g,color);
+  function box(w,h,d,color,x,y,z,rx,ry,rz){ put(new THREE.BoxGeometry(w,h,d),color,x,y,z,rx,ry,rz) }
+  // 棱柱：radial=6 时远看是圆的、近看有明确棱面，正是低多边形要的质感
+  function prism(rt,rb,h,radial,color,x,y,z,rx,ry,rz,flatZ){
+    const g=new THREE.CylinderGeometry(rt,rb,h,radial);
+    if(flatZ)g.scale(1,1,flatZ);            // 压扁成椭圆截面，躯干才不是圆筒
+    put(g,color,x,y,z,rx,ry,rz);
   }
-  // 用两端点搭骨架段(肢体)：几何长轴与端点连线严格重合，不靠手感估旋转角度，关节严丝合缝不悬空
-  function limb(w,d,color,p0,p1){
+  function dome(r,color,x,y,z,flatY){
+    const g=new THREE.SphereGeometry(r,8,4,0,Math.PI*2,0,Math.PI/2);
+    if(flatY)g.scale(1,flatY,1);
+    put(g,color,x,y,z);
+  }
+  // 两端点搭一段肢体：几何长轴严格对齐连线，关节不悬空
+  function limb(r,color,p0,p1,radial){
     const dir=new THREE.Vector3(p1[0]-p0[0],p1[1]-p0[1],p1[2]-p0[2]);
     const len=dir.length(); dir.normalize();
-    const g=new THREE.BoxGeometry(w,len,d);
+    const g=T(new THREE.CylinderGeometry(r,r*.92,len,radial||6));
     g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),dir));
     g.translate((p0[0]+p1[0])/2,(p0[1]+p1[1])/2,(p0[2]+p1[2])/2);
     bake(g,color);
   }
-  box(.20,.10,.28, BOOT,-.10,.05,.05);   box(.20,.10,.24, BOOT, .11,.05,-.02);    // 靴
-  box(.155,.19,.17, UNI,-.10,.155,.02);  box(.155,.19,.17, UNI, .11,.155,-.02);  // 小腿
-  box(.165,.035,.06, PRIM,-.10,.267,.11); box(.165,.035,.06, PRIM, .11,.267,.04);// 护膝
-  box(.16,.175,.19, DARK,-.10,.3725,0);  box(.16,.175,.19, DARK, .11,.3725,-.03);// 大腿
-  box(.36,.17,.24, DARK, 0,.485,.01);                                            // 胯
-  box(.32,.15,.20, DARK, 0,.60,.02);                                             // 腰腹(制服色，比胸甲窄→收腰)
-  box(.40,.24,.25, PRIM, 0,.755,.04, .13);                                       // 胸甲(队伍色，微前倾)
-  box(.26,.045,.03, DARK, 0,.80,.165);                                           // 胸挂弹匣条
-  box(.46,.14,.26, DARK, 0,.885,.06, .13);                                       // 肩甲
-  box(.09,.06,.09, SKIN, 0,.935,.05);                                            // 颈
-  box(.20,.20,.20, SKIN, 0,1.025,.06);                                           // 头
-  box(.30,.03,.28, DARK, 0,1.115,.05);                                          // 头盔沿
-  dome(.155, DARK, 0,1.115,.04);                                                 // 头盔圆顶(半球，不再是方盒)
-  box(.19,.045,.05, side==='CT'?0x1a2230:0x2a2018, 0,1.075,.155);                // 护目镜/面罩条
-  limb(.075,.075, PRIM, [.20,.85,.10],[.12,.745,.15]);                           // 右臂上段(扳机手，肩→肘)
-  limb(.065,.065, PRIM, [.12,.745,.15],[.065,.70,.19]);                          // 右臂下段(肘→握把)
-  box(.075,.075,.09, GLOVE, .065,.695,.20);                                      // 扳机手
-  limb(.075,.075, PRIM, [-.20,.85,.10],[-.09,.735,.24]);                         // 左臂上段(托腮/前握把手，肩→肘)
-  limb(.065,.065, PRIM, [-.09,.735,.24],[.055,.685,.42]);                        // 左臂下段(肘→前护木)
-  box(.075,.075,.09, GLOVE, .055,.68,.43);                                       // 前握把手
-  box(.045,.075,.09, GUN, .06,.755,.09);                                         // 枪托
-  box(.10,.11,.15, GUN, .06,.735,.20);                                           // 机匣
-  box(.038,.05,.085,GUN, .06,.805,.22);                                          // 瞄具
-  box(.045,.10,.045,GUN, .06,.665,.15);                                          // 手枪握把
-  box(.06,.16,.09, GUN, .06,.615,.24);                                           // 弹匣
-  box(.075,.075,.34,GUNL, .06,.735,.42);                                        // 护木(包住枪管)
-  box(.035,.035,.10,GUN, .06,.735,.64);                                          // 枪口
-  box(.035,.09,.035,GUN, .055,.685,.40);                                         // 竖直前握把
-  const m=BufferGeometryUtils.mergeGeometries(parts,false); m.scale(.18,.18,.18); m.computeVertexNormals();
+  function joint(r,color,p){ put(new THREE.IcosahedronGeometry(r,0),color,p[0],p[1],p[2]) }
+
+  /* ── 下盘：左脚在前、右脚在后的射击站姿，不再是两条并排的方腿 ── */
+  box(.175,.075,.30, BOOT,-.105,.038,.075);            // 左靴（前）
+  box(.175,.075,.26, BOOT, .105,.038,-.045);           // 右靴（后）
+  limb(.072, C.PANT, [-.105,.44,.015],[-.105,.10,.055]);   // 左小腿
+  limb(.072, C.PANT, [ .105,.44,-.02],[ .105,.10,-.045]);  // 右小腿
+  joint(.062, C.PRIM, [-.105,.44,.015]);                   // 左护膝（队伍色，小色点）
+  joint(.062, C.PRIM, [ .105,.44,-.02]);
+  limb(.083, C.PANT, [-.10,.66,-.01],[-.105,.44,.015]);    // 左大腿
+  limb(.083, C.PANT, [ .10,.66,-.03],[ .105,.44,-.02]);    // 右大腿
+
+  /* ── 躯干：一条连续的收腰锥体，而不是三块宽度不一的板 ── */
+  prism(.145,.175,.16,8, C.PANT, 0,.715,-.01, 0,Math.PI/8,0, undefined,undefined,undefined, .78); // 胯
+  prism(.185,.145,.20,8, C.DEEP, 0,.895,0,    0,Math.PI/8,0, undefined,undefined,undefined, .74); // 腰腹→胸（收腰）
+  prism(.205,.19,.20,8,  C.PRIM, 0,1.06,.005, 0,Math.PI/8,0, undefined,undefined,undefined, .72); // 战术背心（队伍色主色块）
+  box(.30,.055,.035, C.DEEP, 0,1.05,.145);              // 胸前弹匣条
+  box(.055,.19,.035, STRAP, -.115,1.06,.14, 0,0,.18);   // 背带
+  prism(.235,.215,.085,8, C.DEEP, 0,1.185,.005, 0,Math.PI/8,0, undefined,undefined,undefined, .76); // 肩线
+
+  /* ── 头 ── */
+  box(.10,.075,.10, SKIN, 0,1.245,.01);                 // 颈
+  prism(.098,.105,.155,8, SKIN, 0,1.36,.015);           // 头（八棱柱，比方块像脑袋）
+  dome(.118, C.DEEP, 0,1.415,.012, .85);                // 头盔顶
+  box(.225,.032,.215, C.DEEP, 0,1.418,.012);            // 盔沿
+  box(.155,.05,.045, C.VISOR, 0,1.372,.115);            // 护目镜
+  box(.10,.055,.05, side==='CT'?0x2b3340:0x3a2c1c, 0,1.30,.10); // 面罩
+
+  /* ── 枪：先定枪的位置，再把手接到枪上（不是手拿枪，是枪定位手）──
+       朝向 +Z，枪身略向下前压，符合端枪前进的姿态 */
+  const GY=1.045, GZ=.30;
+  box(.062,.10,.115, GUN,  .055,GY+.012,GZ-.20);        // 枪托
+  box(.052,.055,.075,GUN,  .055,GY-.03, GZ-.10);        // 托腮板
+  box(.105,.125,.20, GUN,  .055,GY,     GZ);            // 机匣
+  box(.05,.062,.10,  GUN,  .055,GY+.088,GZ+.01);        // 瞄具座
+  box(.03,.038,.13,  GUNL, .055,GY+.125,GZ+.01);        // 瞄具筒
+  box(.05,.115,.05,  GUN,  .055,GY-.10, GZ-.045);       // 手枪握把
+  box(.068,.175,.10, GUN,  .055,GY-.115,GZ+.055, .18);  // 弹匣（微前倾）
+  prism(.045,.045,.30,6, GUNL, .055,GY-.005,GZ+.245, Math.PI/2); // 护木
+  prism(.021,.021,.13,6, GUN,  .055,GY-.005,GZ+.455, Math.PI/2); // 枪管
+  prism(.032,.028,.055,6,GUN,  .055,GY-.005,GZ+.53,  Math.PI/2); // 枪口制退器
+  box(.032,.075,.038, GUN,  .05, GY-.075,GZ+.20);       // 竖直前握把
+
+  /* ── 手臂接到枪上 ── */
+  const RH=[.055,GY-.055,GZ-.04], LH=[.05,GY-.075,GZ+.205];
+  limb(.062, C.PRIM, [.185,1.175,-.01],[.115,1.02,.10]);  // 右上臂
+  joint(.055, C.DEEP, [.115,1.02,.10]);                    // 右肘
+  limb(.052, C.PRIM, [.115,1.02,.10],RH);                  // 右前臂 → 扳机手
+  joint(.048, GLOVE, RH);
+  limb(.062, C.PRIM, [-.185,1.175,-.01],[-.115,1.00,.16]); // 左上臂
+  joint(.055, C.DEEP, [-.115,1.00,.16]);                   // 左肘
+  limb(.052, C.PRIM, [-.115,1.00,.16],LH);                 // 左前臂 → 前握把
+  joint(.048, GLOVE, LH);
+
+  const m=BufferGeometryUtils.mergeGeometries(parts,false);
+  m.scale(.145,.145,.145);        // 总高约 1.47 → 缩到 0.213，与旧版占位一致
+  m.computeVertexNormals();
   m.userData={shared:true};
   return m;
 }
@@ -3271,39 +3314,63 @@ function grenMat(){ if(!_grenMat){_grenMat=new THREE.MeshLambertMaterial({vertex
 function buildGrenadeGeo(cls){
   const parts=[];
   function add(g,color,x,y,z,rx,ry,rz){
-    if(g.index)g=g.toNonIndexed(); // 混用多种 primitive(部分带 index/部分不带)必须先统一成 non-indexed 才能 mergeGeometries
+    if(g.index)g=g.toNonIndexed();
     if(rx)g.rotateX(rx); if(ry)g.rotateY(ry); if(rz)g.rotateZ(rz);
     g.translate(x,y,z);
     const c=new THREE.Color(color),n=g.attributes.position.count,a=new Float32Array(n*3);
     for(let i=0;i<n;i++){a[i*3]=c.r;a[i*3+1]=c.g;a[i*3+2]=c.b;}
     g.setAttribute('color',new THREE.BufferAttribute(a,3)); parts.push(g);
   }
+  /* 识别色带一律用 UI 里的数据色本色，跟右栏圆点 / 图标 / 3D 轨迹同色，
+     飞在空中只看一眼也能对上是哪一类。 */
+  const U_SMOKE=0x2563eb, U_FLASH=0xca8a04, U_FIRE=0xea580c, U_HE=0xdc2626;
+  const STEEL=0x9aa0a6, DARKSTEEL=0x6d747c;
+  // 拉环 + 压把是四种手雷共有的特征，抽出来复用，保证四个模型是一家人
+  function pinAndSpoon(topY, r, color){
+    // 环压在引信座上而不是浮在半空：topY+.020 刚好搭住座顶
+    add(new THREE.TorusGeometry(r,.0065,5,10), color, .004,topY+.020,.016, Math.PI*.44,0,.28);
+    add(new THREE.BoxGeometry(.014,.072,.015), color, r+.014,topY-.016,0, 0,0,-.20);
+  }
   if(cls==='smoke'){
-    add(new THREE.CylinderGeometry(.045,.045,.10,12), 0x2c3038, 0,.05,0);                       // 罐体(暗铁灰)
-    add(new THREE.CylinderGeometry(.048,.048,.024,12), 0x1f7c8c, 0,.03,0);                      // 青色环带(半径微凸出罐体，避免共面撞色)
-    add(new THREE.CylinderGeometry(.048,.048,.018,12), 0xcfd4d8, 0,.095,0);                     // 近顶浅灰环
-    add(new THREE.CylinderGeometry(.032,.045,.026,12), 0x23262d, 0,.113,0);                     // 弧顶盖
-    add(new THREE.TorusGeometry(.026,.007,6,12), 0xa7adb3, 0,.148,.02, Math.PI*.42,0,.3);       // 拉环
-    add(new THREE.BoxGeometry(.016,.075,.016), 0xa7adb3, .036,.115,0, 0,0,-.22);                // 压把
+    add(new THREE.CylinderGeometry(.046,.046,.135,10), 0x2f343c, 0,.0675,0);              // 罐体
+    add(new THREE.CylinderGeometry(.0495,.0495,.03,10), U_SMOKE, 0,.042,0);               // 蓝色识别带（=UI 烟雾色）
+    add(new THREE.CylinderGeometry(.0495,.0495,.012,10), DARKSTEEL, 0,.10,0);             // 上加强环
+    add(new THREE.CylinderGeometry(.0495,.0495,.012,10), DARKSTEEL, 0,.012,0);            // 下加强环
+    add(new THREE.CylinderGeometry(.034,.046,.028,10), 0x262a31, 0,.149,0);               // 收口顶盖
+    add(new THREE.CylinderGeometry(.021,.021,.016,8), STEEL, 0,.171,0);                   // 引信座
+    pinAndSpoon(.171,.024,STEEL);
   } else if(cls==='flash'){
-    add(new THREE.CylinderGeometry(.048,.048,.05,12), 0xd4a83a, 0,.025,0);                      // 金色环带(下)
-    add(new THREE.CylinderGeometry(.043,.048,.075,12), 0x16171a, 0,.0875,0);                    // 黑色弹身
-    add(new THREE.CylinderGeometry(.046,.046,.014,12), 0x8a8f96, 0,.133,0);                     // 细钢环(半径微凸出弹身)
-    add(new THREE.CylinderGeometry(.03,.042,.022,12), 0x2a2c30, 0,.153,0);                      // 顶盖
-    add(new THREE.TorusGeometry(.024,.007,6,12), 0x9aa0a6, 0,.182,.018, Math.PI*.42,0,.3);      // 拉环
-    add(new THREE.BoxGeometry(.015,.07,.015), 0x9aa0a6, .034,.148,0, 0,0,-.22);                 // 压把
+    add(new THREE.CylinderGeometry(.044,.044,.115,10), 0x17181c, 0,.0575,0);              // 黑弹身
+    add(new THREE.CylinderGeometry(.0475,.0475,.028,10), U_FLASH, 0,.095,0);              // 黄铜识别带（=UI 闪光色）
+    // 出光孔：三条竖槽，比光板弹身有信息量
+    for(let i=0;i<3;i++){
+      const a=i*Math.PI*2/3;
+      add(new THREE.BoxGeometry(.012,.055,.012), 0x3a3d43, Math.cos(a)*.045,.048,Math.sin(a)*.045);
+    }
+    add(new THREE.CylinderGeometry(.032,.044,.026,10), 0x2a2c30, 0,.128,0);               // 顶盖
+    add(new THREE.CylinderGeometry(.02,.02,.016,8), STEEL, 0,.148,0);                     // 引信座
+    pinAndSpoon(.148,.023,STEEL);
   } else if(cls==='fire'){
-    add(new THREE.CylinderGeometry(.05,.058,.11,12), 0x3a4a28, 0,.055,0);                       // 玻璃瓶身(墨绿)
-    add(new THREE.CylinderGeometry(.06,.06,.05,12), 0xd9772e, 0,.05,0);                         // 橙色标签环(半径大于瓶身，避免被吃掉)
-    add(new THREE.CylinderGeometry(.022,.05,.035,12), 0x3a4a28, 0,.1275,0);                     // 瓶肩收口
-    add(new THREE.CylinderGeometry(.014,.014,.05,10), 0x3a4a28, 0,.17,0);                       // 瓶颈
-    add(new THREE.ConeGeometry(.022,.045,8), 0xff8a2e, 0,.215,0);                               // 火焰下段(橙)
-    add(new THREE.ConeGeometry(.013,.03,8), 0xffce54, 0,.255,0);                                // 火焰尖(亮黄)
-  } else { // he
-    add(new THREE.IcosahedronGeometry(.06,1), 0x5b6a3d, 0,.06,0);                               // 菠萝弹体(棱面天然像格纹)
-    add(new THREE.CylinderGeometry(.025,.03,.03,10), 0x1c1e22, 0,.135,0);                       // 引信黑座
-    add(new THREE.TorusGeometry(.024,.006,6,12), 0xc93a3a, 0,.162,.016, Math.PI*.36,0,.2);      // 红拉环
-    add(new THREE.BoxGeometry(.014,.065,.015), 0x9c2c2c, .034,.125,0, 0,0,-.26);                // 红压把
+    /* 燃烧瓶：酒瓶 + 瓶里的燃油液面 + 塞在瓶口的布捻 + 布捻上偏烧的火。
+       旧版顶上那个左右对称的锥体读起来像火箭头，这版改成歪斜的两片火苗。 */
+    add(new THREE.CylinderGeometry(.052,.058,.115,10), 0x35471f, 0,.0575,0);              // 瓶身（墨绿玻璃）
+    add(new THREE.CylinderGeometry(.0535,.0535,.062,10), 0x6b3f14, 0,.031,0);             // 瓶内燃油液面（琥珀，只到下半截）
+    add(new THREE.CylinderGeometry(.062,.062,.038,10), U_FIRE, 0,.072,0);                 // 橙色标签环（=UI 火焰色）
+    add(new THREE.CylinderGeometry(.021,.052,.042,10), 0x35471f, 0,.136,0);               // 瓶肩收口
+    add(new THREE.CylinderGeometry(.019,.019,.042,8), 0x35471f, 0,.178,0);                // 瓶颈
+    add(new THREE.CylinderGeometry(.023,.023,.012,8), 0x2a3718, 0,.202,0);                // 瓶口唇
+    add(new THREE.BoxGeometry(.026,.055,.02), 0xd8cdb4, .012,.228,0, 0,0,-.30);           // 布捻（歪着塞出瓶口）
+    add(new THREE.ConeGeometry(.026,.062,7), U_FIRE, .028,.272,.004, 0,0,-.34);           // 火苗主体（偏斜）
+    add(new THREE.ConeGeometry(.014,.042,6), 0xffc043, .040,.309,.006, 0,0,-.42);         // 火苗尖（亮黄，再偏一点）
+  } else {
+    /* 高爆雷：detail=0 的二十面体，20 个大棱面才像老式菠萝弹；
+       压扁成蛋形，比正球更有「握在手里」的形状。 */
+    const body=new THREE.IcosahedronGeometry(.062,0);
+    body.scale(1,1.18,1);
+    add(body, 0x54633a, 0,.073,0);
+    add(new THREE.CylinderGeometry(.0285,.0285,.014,8), U_HE, 0,.142,0);                  // 红色识别带（=UI 高爆色）
+    add(new THREE.CylinderGeometry(.024,.028,.026,8), 0x1e2126, 0,.162,0);                // 引信座
+    pinAndSpoon(.162,.023,STEEL);
   }
   const m=BufferGeometryUtils.mergeGeometries(parts,false); m.computeVertexNormals();
   m.userData={shared:true};
