@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>CS2 战术沙盘 · 设计系统总 Demo</title>
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   TACTICAL DECK v1 — CS2 战术沙盘设计系统
+   这一份是唯一标准。所有页面与子页面从这里取值，不允许出现表外的数值。
+   ══════════════════════════════════════════════════════════════════════════ */
+:root{
+  /* ── 1. 字体 ────────────────────────────────────────────────────────────
+     零远程字体：拉丁字体排在前、中文字体排在后，让 Segoe UI/SF 渲染西文，
+     PingFang/雅黑 只接管汉字。首帧即终态，无 FOUT，无被墙的 CDN 请求。 */
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,
+         "PingFang SC","HarmonyOS Sans SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono","Segoe UI Mono",Consolas,monospace;
+
+  /* 字号：苹果式舒适档。基准 15px（原 14 偏挤），整条阶梯上移一档 */
+  --fs-micro:11.5px;--fs-caption:12.5px;--fs-small:13.5px;--fs-body:15px;
+  --fs-lead:17px;--fs-h4:21px;--fs-h3:25px;--fs-h2:30px;--fs-h1:38px;--fs-display:46px;
+  /* 行高整体放宽一档：中文比西文更吃行距，1.7 才读得松 */
+  --lh-tight:1.12;--lh-title:1.25;--lh-snug:1.5;--lh-body:1.7;--lh-loose:1.9;
+  /* 字重：苹果的大标题是 600–700 配紧字距，不是 800。
+     且 Windows 上雅黑没有 500/600 实体字重，写 800 只会被合成得又粗又糊。 */
+  --fw-body:400;--fw-med:500;--fw-bold:600;--fw-display:700;
+  /* 字距做光学补偿：字越大收得越紧，全大写小标签放开但别放到散架 */
+  --ls-tight:-.024em;--ls-wide:.04em;--ls-caps:.12em;
+
+  /* ── 2. 色彩 ────────────────────────────────────────────────────────────
+     中性色只有一个色相（冷石墨蓝 hue≈214），杜绝灰色打架 */
+  --ink-0:#FFFFFF;  --ink-50:#F6F8FB;  --ink-100:#EDF1F6; --ink-150:#E3E9F1;
+  --ink-200:#D5DEE9; --ink-300:#B3C0D1; --ink-400:#8496AE; --ink-500:#5F7189;
+  --ink-600:#46586F; --ink-700:#33445A; --ink-800:#1E2C3F; --ink-900:#121C2B;
+  /* 铬色强调：全站唯一一个强调色（青绿）。避开四个道具数据色（蓝/黄/橙/红） */
+  --acc-50:#E8F5F8; --acc-100:#CDEAF1; --acc-300:#4FB3C9;
+  --acc-500:#0D7C99; --acc-600:#0A6580; --acc-700:#08505F;
+  /* 数据色：锁死，与 3D 场景里的顶点色一致，绝不挪作 UI 装饰。
+     ⚠ 这四个是「填充色」——用来点亮圆点/图标/3D 材质。白底上当文字用
+     只有 smoke 和 he 过 AA，所以每个都配一个加深的 -ink 文本安全变体。 */
+  --u-smoke:#2563EB; --u-flash:#CA8A04; --u-fire:#EA580C; --u-he:#DC2626;
+  --u-smoke-ink:#1D4ED8; --u-flash-ink:#8A6100; --u-fire-ink:#C2410C; --u-he-ink:#DC2626;
+  /* 阵营 */ --ct:#2563EB; --t:#D97706; --ct-ink:#1D4ED8; --t-ink:#B45309;
+  /* 语义 */ --ok:#0E9F6E; --warn:#D97706; --danger:#DC2626;
+  --ok-ink:#047857; --warn-ink:#B45309; --danger-ink:#DC2626;
+  /* 语义别名（页面里只写这些，不写色号） */
+  --bg:var(--ink-50);--surface:var(--ink-0);--surface-2:var(--ink-100);--surface-3:var(--ink-150);
+  --line:rgba(18,28,43,.09); --line-strong:rgba(18,28,43,.16);
+  /* 三级文字全部实测过 AA(4.5:1)：16.1 / 7.2 / 5.0。
+     ink-400 及更浅的只准用于描边、禁用态、图标，不承载文字。 */
+  --text:var(--ink-900); --text-2:var(--ink-600); --text-3:var(--ink-500);
+  --text-inv:#EAF1F8;
+
+  /* ── 3. 阴影：5 档 + 2 个专用。投影一律用冷色，不用纯黑 ─────────────── */
+  --sh-1:0 1px 2px rgba(18,28,43,.04);
+  --sh-2:0 1px 3px rgba(18,28,43,.03),0 6px 18px rgba(18,28,43,.05);
+  --sh-3:0 2px 8px rgba(18,28,43,.04),0 16px 40px rgba(18,28,43,.08);
+  --sh-4:0 8px 26px rgba(18,28,43,.06),0 34px 76px rgba(18,28,43,.11);
+  --sh-5:0 16px 48px rgba(18,28,43,.09),0 56px 120px rgba(18,28,43,.17);
+  --sh-acc:0 8px 24px rgba(13,124,153,.22);
+
+  /* ── 4. 圆角：嵌套时内层 = 外层 − padding，保持同心 ───────────────── */
+  --r-xs:7px; --r-sm:10px; --r-md:14px; --r-lg:18px; --r-xl:28px; --r-full:999px;
+
+  /* ── 5. 间距：4px 基网格 ─────────────────────────────────────────────── */
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px;
+  --sp-8:32px; --sp-10:40px; --sp-12:48px; --sp-16:64px; --sp-20:80px;
+
+  /* ── 6. 动效：曲线各有明确职责，时长分 5 档 ─────────────────────────── */
+  --e-out:cubic-bezier(.22,1,.36,1);       /* 进入/出场，强减速 */
+  --e-in:cubic-bezier(.55,0,1,.45);        /* 离场，加速消失 */
+  --e-both:cubic-bezier(.65,0,.35,1);      /* 往返位移/变形 */
+  --e-spring:cubic-bezier(.34,1.56,.64,1); /* 弹性强调，有一点过冲 */
+  --e-glide:cubic-bezier(.16,1,.3,1);      /* 长距离滑动：抽屉/面板 */
+  --e-snap:cubic-bezier(.3,.9,.2,1);       /* 微交互 hover/press */
+  --t-1:120ms; --t-2:180ms; --t-3:260ms; --t-4:380ms; --t-5:560ms;
+
+  /* ── 7. 玻璃与遮罩：模糊度实测取值 ───────────────────────────────────
+     >30px 在 Windows 集显上掉帧且背景糊成纯色；<8px 压不住前景。 */
+  --blur-1:blur(10px) saturate(1.3);
+  --blur-2:blur(18px) saturate(1.4);
+  --blur-3:blur(26px) saturate(1.5);
+  --glass:rgba(255,255,255,.72);
+  --glass-line:rgba(255,255,255,.70);
+  --scrim-1:rgba(18,28,43,.30);   /* 一般浮层 + blur(6px) */
+  --scrim-2:rgba(18,28,43,.44);   /* 对话框 + blur(10px) */
+  --scrim-3:rgba(10,16,25,.80);   /* 灯箱 + blur(14px) */
+
+  /* ── 8. 栅格与断点 ───────────────────────────────────────────────────── */
+  --gutter:64px; --container:1760px;
+  --safe-b:env(safe-area-inset-bottom,0px);
+}
+@media(max-width:1180px){:root{--gutter:32px}}
+@media(max-width:760px){
+  :root{--gutter:20px;
+    /* 移动端把模糊降一档：GPU 省电、滚动不掉帧 */
+    --blur-2:blur(12px) saturate(1.35); --blur-3:blur(16px) saturate(1.4)}
+}
+
+/* ══ 复位 ══ */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{font-family:var(--font);font-size:var(--fs-body);font-weight:var(--fw-body);
+  line-height:var(--lh-body);color:var(--text);background:var(--bg);
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  font-variant-numeric:tabular-nums}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:none;border:0;cursor:pointer;user-select:none}
+img{display:block;max-width:100%}
+:focus-visible{outline:2px solid var(--acc-500);outline-offset:2px;border-radius:var(--r-xs)}
+:focus:not(:focus-visible){outline:none}
+::selection{background:rgba(13,124,153,.20)}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--ink-200);border-radius:var(--r-full);
+  border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:var(--ink-300);background-clip:content-box}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;
+    transition-duration:.001ms!important}
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   台面背景 — 冷调「战术台」。三层：图 → 冷光 → 蚀刻网格。
+   图缺失时下面两层单独也成立，所以首帧永远有完整样貌，不依赖图片到达。
+   ══════════════════════════════════════════════════════════════════════════ */
+.deck-bg{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(120% 90% at 12% 8%, rgba(255,255,255,.92), rgba(255,255,255,0) 55%),
+    radial-gradient(90% 80% at 88% 18%, rgba(205,234,241,.55), rgba(205,234,241,0) 60%),
+    radial-gradient(100% 100% at 50% 110%, rgba(30,44,63,.16), rgba(30,44,63,0) 62%),
+    linear-gradient(168deg, #F8FAFD 0%, #EAF0F6 42%, #DCE5EF 100%)}
+.deck-bg::before{content:'';position:absolute;inset:0;opacity:.5;
+  background-image:
+    linear-gradient(rgba(30,44,63,.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(30,44,63,.045) 1px, transparent 1px);
+  background-size:64px 64px;
+  -webkit-mask-image:radial-gradient(130% 110% at 20% 0%, #000 18%, transparent 72%);
+  mask-image:radial-gradient(130% 110% at 20% 0%, #000 18%, transparent 72%)}
+/* grsai 出的等高线/测绘网格蚀刻层：已后期压成 207–255 的浅色区间，
+   multiply 叠上去只吃掉一点点亮度，纹理在、UI 不被压。图没到也不影响首帧。 */
+.deck-bg::after{content:'';position:absolute;inset:0;
+  background:image-set(url('../imgs/zs_deck.webp') 1x) center/cover no-repeat;
+  background-image:url('../imgs/zs_deck.webp');
+  opacity:.9;mix-blend-mode:multiply}
+@media(max-width:760px){.deck-bg::after{background-image:url('../imgs/zs_deck_s.webp')}}
+
+/* ══ 布局 ══ */
+.wrap{position:relative;z-index:1;max-width:var(--container);margin:0 auto;
+  padding:var(--gutter);display:flex;flex-wrap:wrap;gap:var(--sp-16) var(--sp-12);
+  align-items:flex-start;min-height:100vh}
+.col-brief{flex:0 0 clamp(340px,27vw,420px);min-width:0;
+  position:sticky;top:var(--gutter)}
+.col-maps{flex:1 1 620px;min-width:0}
+@media(max-width:1180px){
+  .wrap{gap:var(--sp-8)}
+  .col-brief{flex-basis:100%;position:static}
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   简报卡 — 全站唯一的深色锚点。冷台面上压一块石墨，重量与层级一次到位。
+   ══════════════════════════════════════════════════════════════════════════ */
+.brief{position:relative;overflow:hidden;border-radius:var(--r-xl);
+  padding:var(--sp-10) var(--sp-8) var(--sp-8);
+  background:linear-gradient(158deg,#1B283A 0%,#121C2B 52%,#0D1622 100%);
+  box-shadow:var(--sh-4), inset 0 1px 0 rgba(255,255,255,.10);
+  color:var(--text-inv);
+  --mx:50%;--my:50%;--rx:0deg;--ry:0deg;
+  transform:perspective(1100px) rotateX(var(--rx)) rotateY(var(--ry));
+  transition:transform var(--t-4) var(--e-out);
+  /* backwards 不能写 both：both 的填充帧会把 transform:none 永久钉住，倾角就死了 */
+  animation:riseIn var(--t-5) var(--e-out) backwards}
+/* 卡内冷光：从左上斜切下来，是「灯打在简报板上」而不是渐变装饰 */
+.brief::before{content:'';position:absolute;top:-40%;left:-25%;width:85%;height:150%;
+  pointer-events:none;transform:rotate(18deg);
+  background:linear-gradient(90deg,rgba(79,179,201,.16),rgba(79,179,201,0) 70%);
+  filter:blur(28px)}
+/* 底部蚀刻网格，呼应台面 */
+.brief::after{content:'';position:absolute;left:0;right:0;bottom:0;height:170px;
+  pointer-events:none;opacity:.5;
+  background-image:linear-gradient(90deg,rgba(255,255,255,.055) 1px,transparent 1px);
+  background-size:26px 100%;
+  -webkit-mask-image:linear-gradient(transparent,#000);mask-image:linear-gradient(transparent,#000)}
+.brief>*{position:relative;z-index:1}
+
+.eyebrow{display:flex;align-items:center;gap:var(--sp-3);
+  font-size:var(--fs-micro);font-weight:var(--fw-bold);letter-spacing:var(--ls-caps);
+  color:var(--acc-300);margin-bottom:var(--sp-5)}
+.eyebrow::before{content:'';width:24px;height:2px;border-radius:1px;
+  background:linear-gradient(90deg,var(--acc-300),rgba(79,179,201,.15))}
+.brief h1{font-size:var(--fs-h1);line-height:var(--lh-tight);font-weight:var(--fw-display);
+  letter-spacing:var(--ls-tight);margin-bottom:var(--sp-4)}
+.brief .lede{font-size:var(--fs-body);line-height:var(--lh-loose);
+  color:rgba(234,241,248,.62);margin-bottom:var(--sp-8);max-width:34ch}
+
+/* ══ 按钮 ══ */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--sp-2);
+  height:44px;padding:0 var(--sp-5);border-radius:var(--r-md);
+  font-size:var(--fs-body);font-weight:var(--fw-bold);white-space:nowrap;
+  transition:transform var(--t-2) var(--e-snap),box-shadow var(--t-2) var(--e-snap),
+             background var(--t-2) var(--e-snap),color var(--t-2) var(--e-snap),
+             border-color var(--t-2) var(--e-snap)}
+.btn:active{transform:scale(.97)}
+.btn-lg{height:56px;padding:0 var(--sp-6);font-size:var(--fs-lead);border-radius:var(--r-lg)}
+.btn-sm{height:34px;padding:0 var(--sp-4);font-size:var(--fs-small);border-radius:var(--r-sm)}
+
+.btn-primary{position:relative;overflow:hidden;width:100%;
+  background:linear-gradient(135deg,var(--acc-500),var(--acc-700));
+  color:#fff;box-shadow:var(--sh-acc), inset 0 1px 0 rgba(255,255,255,.22)}
+.btn-primary:hover:not(:disabled){transform:translateY(-2px);
+  box-shadow:0 12px 30px rgba(13,124,153,.40), inset 0 1px 0 rgba(255,255,255,.22)}
+.btn-primary:active:not(:disabled){transform:translateY(0) scale(.985)}
+.btn-primary:disabled{opacity:.42;cursor:not-allowed;box-shadow:none}
+/* 扫光：只在可用时跑一次，不做循环动画（循环=噪音） */
+.btn-primary::after{content:'';position:absolute;inset:0 auto 0 -70%;width:45%;
+  pointer-events:none;transform:skewX(-18deg);
+  background:linear-gradient(105deg,transparent,rgba(255,255,255,.42),transparent);
+  transition:left var(--t-5) var(--e-out)}
+.btn-primary:hover:not(:disabled)::after{left:135%}
+.btn-primary .arrow{transition:transform var(--t-2) var(--e-snap)}
+.btn-primary:hover:not(:disabled) .arrow{transform:translateX(4px)}
+
+.btn-ghost-dark{background:rgba(255,255,255,.06);color:rgba(234,241,248,.82);
+  border:1px solid rgba(255,255,255,.13)}
+.btn-ghost-dark:hover{background:rgba(255,255,255,.11);color:#fff;
+  border-color:rgba(79,179,201,.45)}
+.btn-ghost{background:var(--surface);color:var(--text-2);border:1px solid var(--line-strong)}
+.btn-ghost:hover{color:var(--acc-500);border-color:var(--acc-300);box-shadow:var(--sh-2)}
+.btn-quiet{background:transparent;color:var(--text-2)}
+.btn-quiet:hover{background:var(--surface-2);color:var(--text)}
+.btn-danger{background:rgba(220,38,38,.08);color:var(--danger);
+  border:1px solid rgba(220,38,38,.28)}
+.btn-danger:hover{background:rgba(220,38,38,.14);border-color:var(--danger)}
+
+.btn-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-2);margin-top:var(--sp-3)}
+
+/* 简报卡底部状态行 */
+.brief-foot{display:flex;align-items:center;gap:var(--sp-2);
+  margin-top:var(--sp-8);padding-top:var(--sp-5);
+  border-top:1px solid rgba(255,255,255,.09);
+  font-size:var(--fs-caption);color:rgba(234,241,248,.50)}
+.pulse{width:7px;height:7px;border-radius:50%;background:var(--ok);flex:none;
+  box-shadow:0 0 0 0 rgba(14,159,110,.55);animation:pulse 2.6s var(--e-out) infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(14,159,110,.5)}
+  70%{box-shadow:0 0 0 7px rgba(14,159,110,0)}100%{box-shadow:0 0 0 0 rgba(14,159,110,0)}}
+
+/* ══ 区块标题 ══ */
+.sec-head{display:flex;align-items:baseline;gap:var(--sp-3);
+  margin-bottom:var(--sp-4);flex-wrap:wrap}
+.sec-no{width:26px;height:26px;border-radius:var(--r-xs);flex:none;
+  display:grid;place-items:center;align-self:center;
+  background:var(--ink-900);color:var(--text-inv);
+  font-size:var(--fs-caption);font-weight:var(--fw-bold);box-shadow:var(--sh-2)}
+.sec-title{font-size:var(--fs-h4);font-weight:var(--fw-bold);
+  line-height:var(--lh-title);letter-spacing:var(--ls-tight)}
+.sec-hint{font-size:var(--fs-small);color:var(--text-3);margin-left:auto}
+
+/* ══ 搜索触发条 ══ */
+.search-trigger{display:flex;align-items:center;gap:var(--sp-3);width:100%;
+  height:48px;padding:0 var(--sp-4);margin-bottom:var(--sp-5);
+  border-radius:var(--r-md);border:1px solid var(--line);
+  background:rgba(255,255,255,.68);-webkit-backdrop-filter:var(--blur-1);backdrop-filter:var(--blur-1);
+  color:var(--text-3);font-size:var(--fs-body);font-weight:var(--fw-med);
+  box-shadow:var(--sh-1);
+  transition:border-color var(--t-2) var(--e-snap),box-shadow var(--t-2) var(--e-snap),
+             background var(--t-2) var(--e-snap)}
+.search-trigger:hover{background:#fff;border-color:var(--acc-300);box-shadow:var(--sh-2)}
+.search-trigger svg{width:17px;height:17px;color:var(--acc-500);flex:none}
+.kbd{margin-left:auto;font-family:var(--mono);font-size:var(--fs-micro);
+  font-weight:var(--fw-med);color:var(--text-3);
+  padding:3px 7px;border-radius:var(--r-xs);
+  background:var(--surface-2);border:1px solid var(--line);
+  box-shadow:0 1px 0 var(--ink-200)}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   地图卡 — 智能感应模块（magnet）。3D 倾角 + 跟随鼠标的光晕 + 抬升。
+   --mx/--my：鼠标在卡内的百分比位置；--rx/--ry：倾角。均由 JS 写入。
+   ══════════════════════════════════════════════════════════════════════════ */
+.map-grid{display:grid;gap:var(--sp-4);
+  grid-template-columns:repeat(auto-fill,minmax(clamp(150px,14vw,206px),1fr));
+  perspective:1100px}
+.map-card{position:relative;display:flex;flex-direction:column;gap:var(--sp-3);
+  padding:var(--sp-3);border-radius:var(--r-lg);cursor:pointer;
+  background:rgba(255,255,255,.74);border:1px solid var(--glass-line);
+  -webkit-backdrop-filter:var(--blur-1);backdrop-filter:var(--blur-1);
+  box-shadow:var(--sh-2);
+  transform-style:preserve-3d;
+  --mx:50%; --my:50%; --rx:0deg; --ry:0deg;
+  transform:perspective(1100px) rotateX(var(--rx)) rotateY(var(--ry)) translateZ(0);
+  transition:transform var(--t-4) var(--e-out),
+             box-shadow var(--t-3) var(--e-out),
+             border-color var(--t-3) var(--e-out);
+  animation:cardIn var(--t-5) var(--e-out) backwards}
+.map-card.no-anim{animation:none}
+/* 光晕：跟着鼠标走，不是整卡变色 */
+.map-card::before{content:'';position:absolute;inset:0;border-radius:inherit;
+  pointer-events:none;opacity:0;transition:opacity var(--t-3) var(--e-out);
+  background:radial-gradient(circle 220px at var(--mx) var(--my),
+             rgba(13,124,153,.20), rgba(13,124,153,0) 68%)}
+/* 边缘高光：倾角时才亮，像真实材质接到光 */
+.map-card::after{content:'';position:absolute;inset:0;border-radius:inherit;
+  pointer-events:none;opacity:0;transition:opacity var(--t-3) var(--e-out);
+  background:linear-gradient(135deg,rgba(255,255,255,.55),rgba(255,255,255,0) 42%);
+  mix-blend-mode:overlay}
+.map-card.hot{box-shadow:var(--sh-3),0 0 0 1px rgba(13,124,153,.22);
+  border-color:rgba(79,179,201,.5);
+  transition:transform var(--t-1) linear,box-shadow var(--t-3) var(--e-out),
+             border-color var(--t-3) var(--e-out)}
+.map-card.hot::before,.map-card.hot::after{opacity:1}
+.map-card:active{transition:transform var(--t-1) var(--e-snap)}
+
+.mc-cover{position:relative;aspect-ratio:4/3;border-radius:var(--r-md);overflow:hidden;
+  background:linear-gradient(135deg,var(--ink-100),var(--ink-200));
+  transform:translateZ(22px)}
+.mc-cover>img:first-child{width:100%;height:100%;object-fit:cover;
+  transition:transform var(--t-5) var(--e-out)}
+.map-card.hot .mc-cover>img:first-child{transform:scale(1.07)}
+.mc-logo{position:absolute;top:8px;left:8px;width:46px;height:46px;object-fit:contain;
+  filter:drop-shadow(0 3px 8px rgba(18,28,43,.45));
+  transition:transform var(--t-4) var(--e-spring)}
+.map-card.hot .mc-logo{transform:scale(1.08) rotate(-4deg)}
+.mc-count{position:absolute;top:8px;right:8px;height:23px;padding:0 var(--sp-2);
+  display:flex;align-items:center;border-radius:var(--r-xs);
+  background:rgba(18,28,43,.86);color:var(--text-inv);
+  font-size:var(--fs-micro);font-weight:var(--fw-bold);
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+  transition:transform var(--t-3) var(--e-out)}
+.map-card.hot .mc-count{transform:translateY(-2px)}
+.map-card.empty .mc-cover>img:first-child{filter:grayscale(.55);opacity:.75}
+.map-card.empty .mc-count{background:rgba(255,255,255,.9);color:var(--text-3);
+  border:1px solid var(--line)}
+.map-card.empty .mc-logo{opacity:.55;filter:grayscale(.4) drop-shadow(0 2px 5px rgba(18,28,43,.2))}
+
+.mc-row{display:flex;align-items:center;gap:var(--sp-2);padding:0 var(--sp-1) var(--sp-1);
+  transform:translateZ(14px)}
+.mc-name{flex:1;min-width:0;font-size:var(--fs-body);font-weight:var(--fw-bold);
+  letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mc-go{flex:none;font-size:var(--fs-caption);font-weight:var(--fw-bold);color:var(--acc-500);
+  opacity:0;transform:translateX(-4px);
+  transition:opacity var(--t-2) var(--e-out),transform var(--t-2) var(--e-out)}
+.map-card.hot .mc-go{opacity:1;transform:none}
+/* 选中态：描边 + 顶标。不用呼吸动画（常驻动画=噪音），用实心标记 */
+.map-card.on{border-color:var(--acc-500);box-shadow:var(--sh-3),0 0 0 3px rgba(13,124,153,.14)}
+.mc-flag{position:absolute;top:-9px;left:var(--sp-4);height:22px;padding:0 var(--sp-2);
+  display:flex;align-items:center;gap:5px;border-radius:var(--r-xs);
+  background:var(--acc-500);color:#fff;box-shadow:var(--sh-acc);
+  font-size:var(--fs-micro);font-weight:var(--fw-display);letter-spacing:.02em;
+  transform:translateZ(30px);animation:flagIn var(--t-4) var(--e-spring) both}
+
+/* ══ 出场动画（"加载即叙事"）══ */
+@keyframes riseIn{from{opacity:0;transform:translateY(20px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes cardIn{from{opacity:0;transform:translateY(18px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes flagIn{from{opacity:0;transform:translateZ(30px) translateY(6px) scale(.8)}
+  to{opacity:1;transform:translateZ(30px)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes popIn{from{opacity:0;transform:translateY(-8px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes sheetIn{from{opacity:0;transform:translateX(22px)}to{opacity:1;transform:none}}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   以下是规范展示区 — 生产页面不含这部分，只用来敲定与自查标准
+   ══════════════════════════════════════════════════════════════════════════ */
+.spec{position:relative;z-index:1;max-width:var(--container);margin:0 auto;
+  padding:0 var(--gutter) var(--sp-20)}
+.spec-band{margin-top:var(--sp-16);padding-top:var(--sp-8);border-top:1px solid var(--line)}
+.spec h2{font-size:var(--fs-h3);font-weight:var(--fw-bold);letter-spacing:var(--ls-tight);
+  margin-bottom:var(--sp-2)}
+.spec h3{font-size:var(--fs-small);font-weight:var(--fw-bold);letter-spacing:var(--ls-wide);
+  text-transform:uppercase;color:var(--text-3);margin:var(--sp-8) 0 var(--sp-4)}
+.spec p.note{font-size:var(--fs-small);color:var(--text-2);max-width:74ch;line-height:var(--lh-body)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:var(--sp-6);box-shadow:var(--sh-2)}
+.cols{display:grid;gap:var(--sp-4);grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.row{display:flex;flex-wrap:wrap;gap:var(--sp-3);align-items:center}
+
+/* 色板 */
+.swatches{display:grid;gap:var(--sp-2);grid-template-columns:repeat(auto-fill,minmax(112px,1fr))}
+.sw{border-radius:var(--r-sm);overflow:hidden;border:1px solid var(--line);background:var(--surface)}
+.sw i{display:block;height:52px}
+.sw b{display:block;padding:6px 8px 2px;font-size:var(--fs-micro);font-weight:var(--fw-bold)}
+.sw code{display:block;padding:0 8px 7px;font-family:var(--mono);font-size:10px;color:var(--text-3)}
+
+/* 字阶 */
+.type-row{display:flex;align-items:baseline;gap:var(--sp-4);padding:var(--sp-3) 0;
+  border-bottom:1px dashed var(--line)}
+.type-row samp{font-family:var(--mono);font-size:var(--fs-micro);color:var(--text-3);
+  flex:0 0 132px;white-space:nowrap}
+
+/* 阴影 / 圆角 / 间距 */
+.chip-grid{display:grid;gap:var(--sp-4);grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.chip-demo{height:78px;border-radius:var(--r-md);background:var(--surface);
+  display:grid;place-items:center;font-family:var(--mono);font-size:var(--fs-micro);
+  color:var(--text-3);border:1px solid var(--line)}
+.sp-bar{height:14px;border-radius:3px;background:var(--acc-300)}
+
+/* 曲线可视化 */
+.curve{display:flex;flex-direction:column;gap:var(--sp-2)}
+.curve-track{height:36px;border-radius:var(--r-sm);background:var(--surface-2);
+  position:relative;overflow:hidden;cursor:pointer}
+.curve-dot{position:absolute;top:50%;left:6px;width:22px;height:22px;margin-top:-11px;
+  border-radius:50%;background:var(--acc-500);box-shadow:var(--sh-acc)}
+.curve-track.run .curve-dot{left:calc(100% - 28px)}
+.curve-meta{display:flex;justify-content:space-between;font-family:var(--mono);
+  font-size:var(--fs-micro);color:var(--text-3)}
+
+/* ══ 表单：原生控件全部重绘 ══ */
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field-label{font-size:var(--fs-caption);font-weight:var(--fw-bold);color:var(--text-2);
+  letter-spacing:.01em}
+.field-label .req{color:var(--danger)}
+.field-hint{font-size:var(--fs-micro);font-weight:var(--fw-body);color:var(--text-3)}
+.input{width:100%;height:42px;padding:0 var(--sp-3);border-radius:var(--r-sm);
+  background:var(--surface);border:1.5px solid var(--line-strong);
+  font-size:var(--fs-body);font-weight:var(--fw-med);
+  transition:border-color var(--t-2) var(--e-snap),box-shadow var(--t-2) var(--e-snap)}
+.input::placeholder{color:var(--text-3);font-weight:var(--fw-body)}
+.input:hover{border-color:var(--ink-300)}
+.input:focus{outline:none;border-color:var(--acc-500);box-shadow:0 0 0 3px var(--acc-50)}
+.input.err{border-color:var(--danger);box-shadow:0 0 0 3px rgba(220,38,38,.10)}
+
+/* —— 下拉：原生 select 保留在 DOM 里（.value/change 事件不变），视觉整套重绘 —— */
+.sel{position:relative}
+.sel>select{position:absolute;inset:0;width:100%;height:100%;opacity:0;
+  pointer-events:none;appearance:none}
+.sel-btn{display:flex;align-items:center;gap:var(--sp-2);width:100%;height:42px;
+  padding:0 var(--sp-3);border-radius:var(--r-sm);text-align:left;
+  background:var(--surface);border:1.5px solid var(--line-strong);
+  font-size:var(--fs-body);font-weight:var(--fw-med);
+  transition:border-color var(--t-2) var(--e-snap),box-shadow var(--t-2) var(--e-snap)}
+.sel-btn:hover{border-color:var(--ink-300)}
+.sel-btn .sel-val{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sel-btn .sel-caret{flex:none;width:16px;height:16px;color:var(--text-3);
+  transition:transform var(--t-2) var(--e-out)}
+.sel.open .sel-btn{border-color:var(--acc-500);box-shadow:0 0 0 3px var(--acc-50)}
+.sel.open .sel-caret{transform:rotate(180deg);color:var(--acc-500)}
+.sel-list{position:absolute;z-index:60;left:0;right:0;top:calc(100% + 6px);
+  max-height:260px;overflow-y:auto;padding:5px;
+  border-radius:var(--r-md);background:rgba(255,255,255,.94);
+  -webkit-backdrop-filter:var(--blur-2);backdrop-filter:var(--blur-2);
+  border:1px solid var(--line);box-shadow:var(--sh-4);
+  display:none}
+.sel.open .sel-list{display:block;animation:popIn var(--t-2) var(--e-out)}
+.sel.up .sel-list{top:auto;bottom:calc(100% + 6px);transform-origin:bottom}
+.sel-opt{display:flex;align-items:center;gap:var(--sp-2);
+  padding:9px var(--sp-3);border-radius:var(--r-sm);cursor:pointer;
+  font-size:var(--fs-small);font-weight:var(--fw-med);
+  transition:background var(--t-1) linear}
+.sel-opt:hover,.sel-opt.cur{background:var(--surface-2)}
+.sel-opt.on{background:var(--acc-50);color:var(--acc-600);font-weight:var(--fw-bold)}
+.sel-opt .tick{margin-left:auto;opacity:0;color:var(--acc-500);font-weight:var(--fw-bold)}
+.sel-opt.on .tick{opacity:1}
+.sel-group{padding:9px var(--sp-3) 4px;font-size:var(--fs-micro);font-weight:var(--fw-bold);
+  letter-spacing:var(--ls-wide);text-transform:uppercase;color:var(--text-3)}
+
+/* —— 滑杆：轨道/已填/滑块三段全部自绘，Chrome + Firefox 双写 —— */
+.rng{position:relative;width:100%;height:22px;display:flex;align-items:center}
+.rng input[type=range]{appearance:none;-webkit-appearance:none;width:100%;height:22px;
+  background:transparent;cursor:pointer;margin:0}
+.rng input[type=range]::-webkit-slider-runnable-track{height:5px;border-radius:var(--r-full);
+  background:linear-gradient(90deg,var(--acc-500) 0 var(--fill,50%),var(--ink-150) var(--fill,50%) 100%)}
+.rng input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;
+  margin-top:-6px;border-radius:50%;background:#fff;border:1.5px solid var(--acc-500);
+  box-shadow:0 1px 4px rgba(18,28,43,.22);
+  transition:transform var(--t-1) var(--e-snap),box-shadow var(--t-1) var(--e-snap)}
+.rng input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.15)}
+.rng input[type=range]:active::-webkit-slider-thumb{transform:scale(1.05);
+  box-shadow:0 0 0 6px rgba(13,124,153,.16)}
+.rng input[type=range]::-moz-range-track{height:5px;border-radius:var(--r-full);background:var(--ink-150)}
+.rng input[type=range]::-moz-range-progress{height:5px;border-radius:var(--r-full);background:var(--acc-500)}
+.rng input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;
+  background:#fff;border:1.5px solid var(--acc-500);box-shadow:0 1px 4px rgba(18,28,43,.22)}
+.rng-val{flex:none;min-width:38px;text-align:right;font-family:var(--mono);
+  font-size:var(--fs-caption);font-weight:var(--fw-bold);color:var(--acc-600)}
+
+/* —— 开关 —— */
+.sw-toggle{position:relative;width:42px;height:24px;border-radius:var(--r-full);flex:none;
+  background:var(--ink-200);transition:background var(--t-2) var(--e-snap)}
+.sw-toggle i{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 3px rgba(18,28,43,.28);
+  transition:transform var(--t-3) var(--e-spring)}
+.sw-toggle.on{background:var(--acc-500)}
+.sw-toggle.on i{transform:translateX(18px)}
+
+/* —— 分段控件 —— */
+.segment{display:inline-flex;padding:3px;border-radius:var(--r-md);
+  background:var(--surface-2);border:1px solid var(--line)}
+.segment button{padding:7px var(--sp-4);border-radius:var(--r-sm);
+  font-size:var(--fs-small);font-weight:var(--fw-bold);color:var(--text-2);
+  transition:all var(--t-2) var(--e-snap)}
+.segment button:hover{color:var(--text)}
+.segment button.on{background:var(--surface);color:var(--acc-600);box-shadow:var(--sh-1)}
+
+/* —— 徽章 / 数据 chip —— */
+.badge{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px;
+  border-radius:var(--r-xs);font-size:var(--fs-micro);font-weight:var(--fw-bold)}
+.badge i{width:7px;height:7px;border-radius:50%;background:currentColor}
+/* 文字用 -ink 变体保对比度，色点 i 用原填充色保数据一致性 */
+.badge.smoke{color:var(--u-smoke-ink);background:rgba(37,99,235,.10)}
+.badge.smoke i{background:var(--u-smoke)}
+.badge.flash{color:var(--u-flash-ink);background:rgba(202,138,4,.14)}
+.badge.flash i{background:var(--u-flash)}
+.badge.fire{color:var(--u-fire-ink);background:rgba(234,88,12,.11)}
+.badge.fire i{background:var(--u-fire)}
+.badge.he{color:var(--u-he-ink);background:rgba(220,38,38,.10)}
+.badge.he i{background:var(--u-he)}
+.badge.acc{color:var(--acc-600);background:var(--acc-50)}
+.badge.neutral{color:var(--text-2);background:var(--surface-2)}
+
+/* —— 提示气泡 —— */
+.tip{position:absolute;padding:6px var(--sp-3);border-radius:var(--r-sm);
+  background:rgba(18,28,43,.94);color:var(--text-inv);
+  font-size:var(--fs-caption);font-weight:var(--fw-med);white-space:nowrap;
+  box-shadow:var(--sh-3);pointer-events:none;
+  transform:translate(-50%,-118%);opacity:0;
+  transition:opacity var(--t-2) var(--e-out),transform var(--t-2) var(--e-out);z-index:70}
+.tip.show{opacity:1;transform:translate(-50%,-128%)}
+
+/* ══ 模态：视口居中 + 背景模糊 ══ */
+.scrim{position:fixed;inset:0;z-index:200;display:none;
+  align-items:center;justify-content:center;padding:var(--sp-4);
+  background:var(--scrim-2);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.scrim.open{display:flex;animation:fadeIn var(--t-2) var(--e-out)}
+.modal{width:min(420px,100%);border-radius:var(--r-xl);padding:var(--sp-6);
+  background:rgba(255,255,255,.96);
+  -webkit-backdrop-filter:var(--blur-3);backdrop-filter:var(--blur-3);
+  border:1px solid var(--glass-line);box-shadow:var(--sh-5);
+  animation:modalIn var(--t-4) var(--e-out)}
+@keyframes modalIn{from{opacity:0;transform:translateY(16px) scale(.96)}to{opacity:1;transform:none}}
+.modal h3{margin:0 0 var(--sp-2);font-size:var(--fs-lead);font-weight:var(--fw-bold);
+  letter-spacing:0;text-transform:none;color:var(--text)}
+.modal p{font-size:var(--fs-small);color:var(--text-2);line-height:var(--lh-body);
+  margin-bottom:var(--sp-5)}
+.modal-row{display:flex;gap:var(--sp-2);justify-content:flex-end}
+
+/* ══ 跟随视焦的浮层（右键菜单）══ */
+.ctx{position:fixed;z-index:210;min-width:150px;padding:5px;display:none;
+  flex-direction:column;transform-origin:top left;
+  border-radius:var(--r-md);background:rgba(255,255,255,.94);
+  -webkit-backdrop-filter:var(--blur-2);backdrop-filter:var(--blur-2);
+  border:1px solid var(--line);box-shadow:var(--sh-4)}
+.ctx.open{display:flex;animation:ctxIn var(--t-2) var(--e-out)}
+@keyframes ctxIn{from{opacity:0;transform:scale(.94) translateY(-4px)}to{opacity:1;transform:none}}
+.ctx button{display:flex;align-items:center;gap:var(--sp-2);
+  padding:8px var(--sp-3);border-radius:var(--r-sm);text-align:left;
+  font-size:var(--fs-small);font-weight:var(--fw-med);color:var(--text);
+  transition:background var(--t-1) linear}
+.ctx button:hover{background:var(--surface-2)}
+.ctx button.danger{color:var(--danger)}
+.ctx button.danger:hover{background:rgba(220,38,38,.08)}
+
+/* ══ 触屏：关掉倾角（手指没有 hover，倾角只会变成误触后的抖动）══ */
+@media(hover:none),(pointer:coarse){
+  .map-card{transform:none!important}
+  .map-card::before,.map-card::after{display:none}
+  .mc-go{display:none}
+}
+/* ══ 移动端：不是压缩，是重排 ══ */
+@media(max-width:760px){
+  .wrap{padding:var(--sp-5) var(--gutter) var(--sp-8);gap:var(--sp-8)}
+  .brief{padding:var(--sp-6) var(--sp-5) var(--sp-5);border-radius:var(--r-lg)}
+  .brief h1{font-size:var(--fs-h2)}
+  .brief .lede{font-size:var(--fs-small);margin-bottom:var(--sp-5);max-width:none}
+  /* 主 CTA 移到视口底部常驻：竖屏下选完图不用再滚回顶部 */
+  .brief .btn-row{grid-template-columns:1fr 1fr}
+  .map-grid{grid-template-columns:repeat(2,1fr);gap:var(--sp-3)}
+  .mc-cover{aspect-ratio:16/11}
+  .mc-logo{width:36px;height:36px}
+  .sec-hint{flex-basis:100%;margin-left:0}
+}
+/* ══ 触控热区：粗指针下所有可点元素实际可点区域 ≥44px ══════════════════
+   只放大命中区，不放大视觉体积——控件看着还是原尺寸，手指却打得中。 */
+@media(pointer:coarse){
+  /* 用 min-height 而不是 height：只把偏小的抬到 44，不会把大号 CTA 压回去 */
+  .btn,.btn-sm,.input,.sel-btn{min-height:45px}
+  .search-trigger{height:48px}
+  .segment button{min-height:44px}
+  .rng,.rng input[type=range]{height:44px}   /* 轨道视觉不变，命中区撑满 */
+  .sw-toggle{position:relative}
+  .sw-toggle::after{content:'';position:absolute;inset:-10px -6px}  /* 24→44 命中区 */
+  .sel-opt{padding-top:12px;padding-bottom:12px}
+  .ctx button{padding-top:12px;padding-bottom:12px}
+}
+</style>
+</head>
+<body>
+<div class="deck-bg"></div>
+
+<!-- ═══════════════ 总 Demo：首页/地图选择页 高保真 ═══════════════ -->
+<div class="wrap">
+  <div class="col-brief">
+    <div class="brief">
+      <div class="eyebrow">TACTICAL SANDBOX</div>
+      <h1>CS2 战术沙盘</h1>
+      <p class="lede">选择地图，进入三维战术沙盘，查看每颗道具的投掷点、飞行轨迹与落点效果。实战照着描点，不再靠记。</p>
+      <button class="btn btn-lg btn-primary" id="cta">
+        <span>进入沙盘</span><span style="opacity:.45">·</span><span id="ctaMap">炼狱小镇</span>
+        <span class="arrow">→</span>
+      </button>
+      <div class="btn-row">
+        <button class="btn btn-ghost-dark">导出完整备份</button>
+        <button class="btn btn-ghost-dark">导入备份</button>
+      </div>
+      <div class="brief-foot"><span class="pulse"></span>云同步已开启 · 91 颗道具</div>
+    </div>
+  </div>
+
+  <div class="col-maps">
+    <div class="sec-head">
+      <span class="sec-no">一</span>
+      <span class="sec-title">选择地图</span>
+      <span class="sec-hint">点卡片选中 · 再点左侧「进入沙盘」</span>
+    </div>
+    <button class="search-trigger">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+        <circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <span>搜全部地图的道具，一键直达</span><span class="kbd">/</span>
+    </button>
+    <div class="map-grid" id="grid"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ 规范展示区 ═══════════════ -->
+<div class="spec">
+
+<div class="spec-band">
+  <h2>设计 Token · 唯一标准</h2>
+  <p class="note">下面每一项都是页面里能出现的全部取值。任何页面、任何子页面不得使用表外数值——包括「就差 1px」的圆角、「稍微深一点」的灰、「随手写的」0.3s ease。</p>
+
+  <h3>色彩 · 中性（单一冷石墨蓝色相，杜绝灰色打架）</h3>
+  <div class="swatches" id="swInk"></div>
+
+  <h3>色彩 · 铬色强调（全站唯一强调色，避开四个道具数据色）</h3>
+  <div class="swatches" id="swAcc"></div>
+
+  <h3>色彩 · 数据色（锁死，与 3D 场景顶点色一致，绝不挪作 UI 装饰）</h3>
+  <div class="swatches" id="swData"></div>
+
+  <h3>色彩 · 文本安全变体（数据色当文字用时必须换成这一档）</h3>
+  <div class="swatches" id="swInk2"></div>
+
+  <h3>对比度自查（实时计算，不达标就是 bug）</h3>
+  <div class="panel" id="contrast"></div>
+
+  <h3>字号梯度 · 字重 · 行高</h3>
+  <div class="panel" id="typeScale"></div>
+
+  <h3>阴影深度（5 档 + 2 专用，投影一律冷色不用纯黑）</h3>
+  <div class="chip-grid" id="shadows"></div>
+
+  <h3>圆角半径（嵌套时内层 = 外层 − padding，保持同心）</h3>
+  <div class="chip-grid" id="radii"></div>
+
+  <h3>元素间距（4px 基网格）</h3>
+  <div class="panel" id="spacing"></div>
+
+  <h3>动效曲线（点一下看运动质感）</h3>
+  <div class="cols" id="curves"></div>
+
+  <h3>断点策略</h3>
+  <div class="panel">
+    <div class="type-row"><samp>≤ 480</samp><span>手机竖屏：单列，卡片改 16:11，主 CTA 底部常驻</span></div>
+    <div class="type-row"><samp>481 – 760</samp><span>手机横屏 / 小屏：地图两列，倾角与 hover 全关，热区 ≥44px</span></div>
+    <div class="type-row"><samp>761 – 1180</samp><span>平板：简报卡转为顶部横条，地图区独立滚动，单屏不溢出</span></div>
+    <div class="type-row"><samp>1181 – 1999</samp><span>桌面：左简报 + 右地图，栅格 auto-fill minmax(150–206px)</span></div>
+    <div class="type-row" style="border:0"><samp>≥ 2000</samp><span>超宽：容器锁 1760px 居中，留白比拉伸更贵</span></div>
+  </div>
+</div>
+
+<div class="spec-band">
+  <h2>组件 · 原生控件全部重绘</h2>
+  <p class="note">浏览器默认样式一律推翻。下拉框保留原生 <code>&lt;select&gt;</code> 在 DOM 里（<code>.value</code> 与 <code>change</code> 事件不变，现有 JS 零改动），只把视觉换成自绘面板。</p>
+
+  <div class="cols" style="margin-top:var(--sp-6)">
+    <div class="panel">
+      <h3 style="margin-top:0">按钮</h3>
+      <div class="row">
+        <button class="btn btn-primary" style="width:auto">主操作</button>
+        <button class="btn btn-ghost">次操作</button>
+        <button class="btn btn-quiet">弱操作</button>
+        <button class="btn btn-danger">删除</button>
+        <button class="btn btn-primary" style="width:auto" disabled>禁用</button>
+      </div>
+      <div class="row" style="margin-top:var(--sp-4)">
+        <button class="btn btn-sm btn-ghost">小号</button>
+        <button class="btn btn-ghost">标准</button>
+        <button class="btn btn-lg btn-ghost" style="width:auto">大号</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin-top:0">输入 · 下拉</h3>
+      <div style="display:grid;gap:var(--sp-4)">
+        <div class="field">
+          <label class="field-label">名称 <span class="req">*</span></label>
+          <input class="input" placeholder="如：警家烟">
+        </div>
+        <div class="field">
+          <label class="field-label">道具 <span class="field-hint">重绘的下拉面板</span></label>
+          <div class="sel" data-sel>
+            <select>
+              <option>烟雾弹</option><option>闪光弹</option>
+              <option selected>火焰</option><option>高爆雷</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label">投掷方式</label>
+          <div class="sel" data-sel>
+            <select>
+              <option>站立投掷</option><option selected>跳跃+投掷</option>
+              <option>W+跳跃+投掷</option><option>Shift+W+投掷</option>
+              <option>Ctrl+跳跃+投掷</option><option>S+跳跃+投掷</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin-top:0">滑杆 · 开关 · 分段</h3>
+      <div style="display:grid;gap:var(--sp-5)">
+        <div class="field">
+          <label class="field-label">弧线高度</label>
+          <div class="row" style="gap:var(--sp-3);flex-wrap:nowrap">
+            <div class="rng"><input type="range" min="0" max="300" value="160" data-rng></div>
+            <span class="rng-val">1.6×</span>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label">区域边界透明度</label>
+          <div class="row" style="gap:var(--sp-3);flex-wrap:nowrap">
+            <div class="rng"><input type="range" min="0" max="100" value="35" data-rng></div>
+            <span class="rng-val">35%</span>
+          </div>
+        </div>
+        <div class="row" style="justify-content:space-between">
+          <span class="field-label" style="margin:0">显示 cs2util 报点</span>
+          <button class="sw-toggle on" data-toggle><i></i></button>
+        </div>
+        <div class="row" style="justify-content:space-between">
+          <span class="field-label" style="margin:0">阵营</span>
+          <div class="segment"><button class="on">CT 方</button><button>T 方</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin-top:0">徽章 · 浮层</h3>
+      <div class="row">
+        <span class="badge smoke"><i></i>烟雾弹</span>
+        <span class="badge flash"><i></i>闪光弹</span>
+        <span class="badge fire"><i></i>火焰</span>
+        <span class="badge he"><i></i>高爆雷</span>
+      </div>
+      <div class="row" style="margin-top:var(--sp-3)">
+        <span class="badge acc">已选中</span>
+        <span class="badge neutral">6 颗</span>
+        <span class="badge" style="color:var(--warn-ink);background:rgba(217,119,6,.12)">需更新</span>
+      </div>
+      <div class="row" style="margin-top:var(--sp-5)">
+        <button class="btn btn-ghost" id="openModal">打开对话框（视口居中）</button>
+        <button class="btn btn-ghost" id="openCtx">右键菜单（跟随触点）</button>
+      </div>
+      <p class="note" style="margin-top:var(--sp-3);font-size:var(--fs-caption)">
+        定位逻辑：需要打断的（确认/搜索）走视口居中 + 背景模糊；不该打断心流的（右键菜单、提示、编辑栏）跟随触发点或常驻侧栏，不遮当前视焦。
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="spec-band">
+  <h2>智能感应模块</h2>
+  <p class="note">鼠标移到上面的地图卡上看：光晕跟着鼠标精确位置扩散，卡片按鼠标相对中心的偏移产生 ±6° 三维倾角，封面缓放、徽章上浮、logo 微转，层次靠 <code>translateZ</code> 分开而不是靠阴影伪造。离开时回正比进入慢（380ms vs 120ms），有回位的重量感。触屏与「减少动效」偏好下自动全关。</p>
+</div>
+
+</div>
+
+<!-- 对话框 -->
+<div class="scrim" id="scrim">
+  <div class="modal">
+    <h3>删除这颗道具？</h3>
+    <p>「警家烟」将从炼狱小镇 CT 方移除，关联的三张描点图一并删除。此操作可用左上角撤销恢复。</p>
+    <div class="modal-row">
+      <button class="btn btn-ghost" data-close>取消</button>
+      <button class="btn btn-danger" data-close>删除</button>
+    </div>
+  </div>
+</div>
+<div class="ctx" id="ctx">
+  <button>播放这颗轨迹</button>
+  <button>从这里新增道具</button>
+  <button>重命名</button>
+  <button class="danger">删除</button>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════════
+   1) 智能感应：磁吸倾角 + 跟随光晕
+   一个函数管全站所有卡片/模块。写 CSS 变量，动画交给合成器，不碰布局。
+   ══════════════════════════════════════════════════════════════════════════ */
+const FINE = matchMedia('(hover:hover) and (pointer:fine)').matches
+          && !matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+function magnet(el, maxTilt = 6) {
+  if (!FINE) return;
+  let raf = 0, box = null;
+  const onEnter = () => { box = el.getBoundingClientRect(); el.classList.add('hot'); };
+  const onMove = e => {
+    if (!box) box = el.getBoundingClientRect();
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      const x = (e.clientX - box.left) / box.width;
+      const y = (e.clientY - box.top) / box.height;
+      el.style.setProperty('--mx', (x * 100).toFixed(1) + '%');
+      el.style.setProperty('--my', (y * 100).toFixed(1) + '%');
+      // 鼠标在右 → 绕 Y 正转；鼠标在下 → 绕 X 负转。像被一只手指按住那一角。
+      el.style.setProperty('--ry', ((x - .5) * 2 * maxTilt).toFixed(2) + 'deg');
+      el.style.setProperty('--rx', ((.5 - y) * 2 * maxTilt).toFixed(2) + 'deg');
+    });
+  };
+  const onLeave = () => {
+    box = null; el.classList.remove('hot');
+    el.style.setProperty('--rx', '0deg'); el.style.setProperty('--ry', '0deg');
+  };
+  el.addEventListener('pointerenter', onEnter);
+  el.addEventListener('pointermove', onMove);
+  el.addEventListener('pointerleave', onLeave);
+}
+
+/* ══ 2) 地图卡渲染（Demo 数据） ══ */
+const MAPS = [
+  ['炼狱小镇', 46], ['荒漠迷城', 12], ['炙热沙城2', 21], ['核子危机', 8], ['远古遗迹', 3],
+  ['阿努比斯', 0], ['死亡游乐园', 0], ['殒命大厦', 1], ['列车停放站', 0]
+];
+let cur = '炼狱小镇';
+function renderGrid(first) {
+  document.getElementById('grid').innerHTML = MAPS.map(([m, n], i) => `
+    <div class="map-card${cur === m ? ' on' : ''}${n ? '' : ' empty'}${first ? '' : ' no-anim'}"
+         style="animation-delay:${Math.min(i * 45, 360)}ms" data-map="${m}">
+      <div class="mc-cover">
+        <img src="../maps/cover/${m}.webp?_a=6" alt="${m}" loading="lazy"
+             onerror="this.onerror=null;this.src='../maps/${m}.webp?_a=6'">
+        <img class="mc-logo" src="../maps/logo/${m}.webp?_a=6" alt="" loading="lazy"
+             onerror="this.style.display='none'">
+        <span class="mc-count">${n ? n + ' 条' : '待录入'}</span>
+      </div>
+      <div class="mc-row"><span class="mc-name">${m}</span><span class="mc-go">进入 →</span></div>
+      ${cur === m ? '<span class="mc-flag">✓ 已选</span>' : ''}
+    </div>`).join('');
+  document.querySelectorAll('.map-card').forEach(c => {
+    magnet(c);
+    c.addEventListener('click', () => { cur = c.dataset.map; renderGrid(false); });
+  });
+  document.getElementById('ctaMap').textContent = cur;
+}
+renderGrid(true);
+magnet(document.querySelector('.brief'), 2.5);   // 简报卡也有引力，但克制得多
+
+/* ══════════════════════════════════════════════════════════════════════════
+   3) 下拉重绘：原生 select 留在 DOM（value / change 不变），只换视觉外壳
+   ══════════════════════════════════════════════════════════════════════════ */
+const CARET = '<svg class="sel-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg>';
+function enhanceSelect(box) {
+  const sel = box.querySelector('select');
+  if (!sel || box.dataset.done) return; box.dataset.done = '1';
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'sel-btn';
+  btn.setAttribute('aria-haspopup', 'listbox');
+  const list = document.createElement('div');
+  list.className = 'sel-list'; list.setAttribute('role', 'listbox');
+  box.append(btn, list);
+
+  const sync = () => {
+    btn.innerHTML = `<span class="sel-val">${sel.options[sel.selectedIndex]?.text ?? ''}</span>${CARET}`;
+    list.innerHTML = [...sel.options].map((o, i) =>
+      `<div class="sel-opt${i === sel.selectedIndex ? ' on' : ''}" role="option" data-i="${i}">
+         <span>${o.text}</span><span class="tick">✓</span></div>`).join('');
+  };
+  const close = () => { box.classList.remove('open'); document.removeEventListener('pointerdown', away, true); };
+  const away = e => { if (!box.contains(e.target)) close(); };
+  const open = () => {
+    document.querySelectorAll('.sel.open').forEach(o => o !== box && o.classList.remove('open'));
+    // 空间不够就向上开：浮层永远在视口内，不会被裁掉
+    box.classList.toggle('up', btn.getBoundingClientRect().bottom + 270 > innerHeight);
+    box.classList.add('open');
+    list.querySelector('.sel-opt.on')?.scrollIntoView({ block: 'nearest' });
+    document.addEventListener('pointerdown', away, true);
+  };
+  btn.addEventListener('click', () => box.classList.contains('open') ? close() : open());
+  list.addEventListener('click', e => {
+    const o = e.target.closest('.sel-opt'); if (!o) return;
+    sel.selectedIndex = +o.dataset.i;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));  // 现有 onchange 照常触发
+    sync(); close();
+  });
+  btn.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const n = sel.options.length;
+      sel.selectedIndex = (sel.selectedIndex + (e.key === 'ArrowDown' ? 1 : n - 1)) % n;
+      sel.dispatchEvent(new Event('change', { bubbles: true })); sync();
+    } else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+    else if (e.key === 'Escape') close();
+  });
+  sel.addEventListener('change', sync);
+  sync();
+}
+document.querySelectorAll('[data-sel]').forEach(enhanceSelect);
+
+/* ══ 4) 滑杆已填色（Chrome 需要 JS 喂 --fill；Firefox 走 ::-moz-range-progress） ══ */
+function enhanceRange(r) {
+  const paint = () => {
+    const p = (r.value - r.min) / ((r.max - r.min) || 1) * 100;
+    r.style.setProperty('--fill', p + '%');
+    const out = r.closest('.row')?.querySelector('.rng-val');
+    if (out) out.textContent = r.max > 100 ? (r.value / 100).toFixed(1) + '×' : r.value + '%';
+  };
+  r.addEventListener('input', paint); paint();
+}
+document.querySelectorAll('[data-rng]').forEach(enhanceRange);
+
+/* ══ 5) 开关 ══ */
+document.querySelectorAll('[data-toggle]').forEach(t =>
+  t.addEventListener('click', () => t.classList.toggle('on')));
+
+/* ══ 6) 浮层 ══ */
+const scrim = document.getElementById('scrim');
+document.getElementById('openModal').onclick = () => scrim.classList.add('open');
+scrim.addEventListener('click', e => {
+  if (e.target === scrim || e.target.hasAttribute('data-close')) scrim.classList.remove('open');
+});
+addEventListener('keydown', e => { if (e.key === 'Escape') scrim.classList.remove('open'); });
+
+const ctx = document.getElementById('ctx');
+document.getElementById('openCtx').onclick = e => {
+  const r = e.currentTarget.getBoundingClientRect();
+  // 跟随触发点，并夹进视口，不打断当前视焦
+  ctx.style.left = Math.min(r.left, innerWidth - 170) + 'px';
+  ctx.style.top = Math.min(r.bottom + 6, innerHeight - 190) + 'px';
+  ctx.classList.add('open');
+  setTimeout(() => addEventListener('pointerdown', function h(ev) {
+    if (!ctx.contains(ev.target)) { ctx.classList.remove('open'); removeEventListener('pointerdown', h); }
+  }), 0);
+};
+
+/* ══════════════════════════════════════════════════════════════════════════
+   7) 规范展示区（只在 Demo 里跑，生产页面不含）
+   ══════════════════════════════════════════════════════════════════════════ */
+const css = getComputedStyle(document.documentElement);
+const sw = (list, host) => document.getElementById(host).innerHTML = list.map(v =>
+  `<div class="sw"><i style="background:var(${v})"></i><b>${v.replace('--', '')}</b>
+   <code>${css.getPropertyValue(v).trim()}</code></div>`).join('');
+sw(['--ink-0', '--ink-50', '--ink-100', '--ink-150', '--ink-200', '--ink-300',
+    '--ink-400', '--ink-500', '--ink-600', '--ink-700', '--ink-800', '--ink-900'], 'swInk');
+sw(['--acc-50', '--acc-100', '--acc-300', '--acc-500', '--acc-600', '--acc-700'], 'swAcc');
+sw(['--u-smoke', '--u-flash', '--u-fire', '--u-he', '--ct', '--t', '--ok', '--warn', '--danger'], 'swData');
+sw(['--u-smoke-ink', '--u-flash-ink', '--u-fire-ink', '--u-he-ink',
+    '--ct-ink', '--t-ink', '--ok-ink', '--warn-ink', '--danger-ink'], 'swInk2');
+
+/* 对比度自查：WCAG 相对亮度，AA 正文 4.5:1、大字 3:1 */
+{
+  const hex = h => { h = h.trim().replace('#', ''); return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)); };
+  const lum = ([r, g, b]) => { const f = c => (c /= 255) <= .03928 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4;
+    return .2126 * f(r) + .7152 * f(g) + .0722 * f(b); };
+  const ratio = (a, b) => { const [x, y] = [lum(hex(css.getPropertyValue(a))), lum(hex(css.getPropertyValue(b)))]
+    .sort((p, q) => q - p); return (x + .05) / (y + .05); };
+  const PAIRS = [
+    ['--ink-900', '--ink-50', '一级文字 / 页面底'],
+    ['--ink-600', '--ink-0', '二级文字 / 白'],
+    ['--ink-500', '--ink-0', '三级文字 / 白'],
+    ['--acc-500', '--ink-0', '强调色文字 / 白'],
+    ['--ink-0', '--acc-500', '白字 / 强调按钮'],
+    ['--acc-600', '--acc-50', '强调深 / 强调浅底'],
+    ['--ink-0', '--ink-900', '白字 / 深简报卡'],
+    ['--u-smoke-ink', '--ink-0', '烟雾（文本变体）'],
+    ['--u-flash-ink', '--ink-0', '闪光（文本变体）'],
+    ['--u-fire-ink', '--ink-0', '火焰（文本变体）'],
+    ['--u-he-ink', '--ink-0', '高爆（文本变体）'],
+    ['--t-ink', '--ink-0', 'T 方（文本变体）'],
+    ['--ok-ink', '--ink-0', '成功（文本变体）'],
+    ['--ink-400', '--ink-0', 'ink-400 / 白 ← 故意不达标：只准描边/禁用/图标，不承载文字'],
+  ];
+  document.getElementById('contrast').innerHTML = PAIRS.map(([a, b, n]) => {
+    const r = ratio(a, b), ok = r >= 4.5;
+    const tag = ok ? 'AA 通过' : r >= 3 ? '仅大字' : '不达标';
+    const col = ok ? 'var(--ok-ink)' : r >= 3 ? 'var(--warn-ink)' : 'var(--danger)';
+    return `<div class="type-row" style="padding:7px 0">
+      <samp style="flex-basis:64px;color:${col};font-weight:700">${r.toFixed(2)}</samp>
+      <span class="badge" style="color:${col};background:transparent;border:1px solid currentColor">${tag}</span>
+      <span style="font-size:var(--fs-small)">${n}</span>
+      <samp style="margin-left:auto">${a} · ${b}</samp></div>`;
+  }).join('');
+}
+
+document.getElementById('typeScale').innerHTML = [
+  ['46', 'fs-display', '展示标题', 700, '1.12', '-.024em'],
+  ['38', 'fs-h1', '页面主标题', 700, '1.12', '-.024em'],
+  ['30', 'fs-h2', '大区块标题', 700, '1.25', '-.024em'],
+  ['25', 'fs-h3', '区块标题', 600, '1.25', '-.024em'],
+  ['21', 'fs-h4', '卡片 / 面板标题', 600, '1.25', '-.024em'],
+  ['17', 'fs-lead', '强调正文 / 按钮 / 数值', 600, '1.5', '0'],
+  ['15', 'fs-body', '正文（基准）', 400, '1.7', '0'],
+  ['13.5', 'fs-small', '列表项 / 表单', 500, '1.5', '0'],
+  ['12.5', 'fs-caption', '辅助说明', 500, '1.5', '0'],
+  ['11.5', 'fs-micro', '角标 / 全大写小标签', 600, '1.5', '.04 – .12em'],
+].map(([px, name, use, w, lh, ls]) => `
+  <div class="type-row">
+    <samp>${px}px / ${w} / ${lh}</samp>
+    <span style="font-size:${px}px;font-weight:${w};line-height:${lh};letter-spacing:${ls}">${use}</span>
+    <span style="margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--text-3)">${name}</span>
+  </div>`).join('');
+
+document.getElementById('shadows').innerHTML =
+  ['--sh-1|贴地 · 分隔', '--sh-2|卡片静止', '--sh-3|抬起 / 浮层', '--sh-4|抽屉 / 菜单',
+   '--sh-5|全屏对话框', '--sh-acc|主按钮'].map(s => {
+    const [v, use] = s.split('|');
+    return `<div class="chip-demo" style="box-shadow:var(${v})">${v.replace('--', '')}<br><span style="color:var(--text-2)">${use}</span></div>`;
+  }).join('');
+
+document.getElementById('radii').innerHTML =
+  ['--r-xs|角标 chip', '--r-sm|输入 / 小按钮', '--r-md|按钮 / 列表项',
+   '--r-lg|卡片 / 面板', '--r-xl|大卡 / 模态', '--r-full|胶囊'].map(s => {
+    const [v, use] = s.split('|');
+    return `<div class="chip-demo" style="border-radius:var(${v});background:var(--surface-2);border-color:transparent">
+      ${css.getPropertyValue(v).trim()}<br><span style="color:var(--text-2)">${use}</span></div>`;
+  }).join('');
+
+document.getElementById('spacing').innerHTML =
+  ['--sp-1', '--sp-2', '--sp-3', '--sp-4', '--sp-5', '--sp-6', '--sp-8', '--sp-10', '--sp-12', '--sp-16', '--sp-20']
+    .map(v => `<div class="type-row" style="padding:6px 0">
+      <samp>${v.replace('--', '')} · ${css.getPropertyValue(v).trim()}</samp>
+      <div class="sp-bar" style="width:var(${v})"></div></div>`).join('');
+
+document.getElementById('curves').innerHTML =
+  [['--e-out', '进入 / 出场', '260–420ms'], ['--e-in', '离场', '180–240ms'],
+   ['--e-both', '往返位移', '280ms'], ['--e-spring', '弹性强调', '420ms'],
+   ['--e-glide', '抽屉滑动', '480–560ms'], ['--e-snap', 'hover / press', '120–180ms']]
+    .map(([v, use, dur]) => `
+    <div class="curve">
+      <div class="curve-track" data-curve style="--c:var(${v})">
+        <div class="curve-dot" style="transition:left var(--t-4) var(${v})"></div></div>
+      <div class="curve-meta"><b style="color:var(--text-2)">${v.replace('--', '')} · ${use}</b><span>${dur}</span></div>
+      <div class="curve-meta"><span>${css.getPropertyValue(v).trim()}</span></div>
+    </div>`).join('');
+document.querySelectorAll('[data-curve]').forEach(t =>
+  t.addEventListener('click', () => {
+    t.classList.toggle('run');
+  }));
+</script>
+</body>
+</html>

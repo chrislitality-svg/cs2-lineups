@@ -6,6 +6,7 @@ _archive/
 
 # 备份 / 临时
 *.bak
+*.bak-*
 index.html.bak-*
 _check.mjs
 _gen_*.py
