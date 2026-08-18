@@ -13,8 +13,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const FILES = {
   'zs  (战术沙盘)': resolve(here, '../index.html'),
   'zs  (总 Demo)': resolve(here, 'demo.html'),
-  'cs2 (门户页)': resolve(here, '../../cs2-portal/index.html'),
-  'zl  (我的租赁)': resolve(here, '../../cs2-zl/index.html'),
+  'cs2 (门户页)': resolve(here, '../portal/index.html'),
+  'zl  (我的租赁)': resolve(here, '../zl/index.html'),
 };
 
 /* 只比对「设计决策」类 token。--panel-w / --gutter / --topbar-h 这类
