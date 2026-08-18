@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#F6F8FB">
+<title>CS2 管家</title>
+<!-- 零远程字体：拉丁在前中文在后，首帧即终态。详见 /cs2/zs/_design/demo.html -->
+<link rel="preload" as="image" href="/cs2/zs/imgs/zs_deck.webp?v=1" media="(min-width:761px)">
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   TACTICAL DECK v1 — token 表与 /cs2/zs/ 完全一致。
+   唯一标准在 /cs2/zs/_design/demo.html，改任何一处都要三个页面同步改。
+   一致性由 _design/check-tokens.mjs 守卫。
+   ══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,
+         "PingFang SC","HarmonyOS Sans SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono","Segoe UI Mono",Consolas,monospace;
+  /* 字号：苹果式舒适档。基准 15px（原 14 偏挤），整条阶梯上移一档 */
+  --fs-micro:11.5px;--fs-caption:12.5px;--fs-small:13.5px;--fs-body:15px;
+  --fs-lead:17px;--fs-h4:21px;--fs-h3:25px;--fs-h2:30px;--fs-h1:38px;--fs-display:46px;
+  /* 行高整体放宽一档：中文比西文更吃行距，1.7 才读得松 */
+  --lh-tight:1.12;--lh-title:1.25;--lh-snug:1.5;--lh-body:1.7;--lh-loose:1.9;
+  /* 字重：苹果的大标题是 600–700 配紧字距，不是 800。
+     且 Windows 上雅黑没有 500/600 实体字重，写 800 只会被合成得又粗又糊。 */
+  --fw-body:400;--fw-med:500;--fw-bold:600;--fw-display:700;
+  /* 字距做光学补偿：字越大收得越紧，全大写小标签放开但别放到散架 */
+  --ls-tight:-.024em;--ls-wide:.04em;--ls-caps:.12em;
+  --ink-0:#FFFFFF;--ink-50:#F6F8FB;--ink-100:#EDF1F6;--ink-150:#E3E9F1;
+  --ink-200:#D5DEE9;--ink-300:#B3C0D1;--ink-400:#8496AE;--ink-500:#5F7189;
+  --ink-600:#46586F;--ink-700:#33445A;--ink-800:#1E2C3F;--ink-900:#121C2B;
+  --acc-50:#E8F5F8;--acc-100:#CDEAF1;--acc-300:#4FB3C9;
+  --acc-500:#0D7C99;--acc-600:#0A6580;--acc-700:#08505F;
+  --u-smoke:#2563EB;--u-flash:#CA8A04;--u-fire:#EA580C;--u-he:#DC2626;
+  --u-smoke-ink:#1D4ED8;--u-flash-ink:#8A6100;--u-fire-ink:#C2410C;--u-he-ink:#DC2626;
+  --ct:#2563EB;--t:#D97706;--ct-ink:#1D4ED8;--t-ink:#B45309;
+  --ok:#0E9F6E;--warn:#D97706;--danger:#DC2626;
+  --ok-ink:#047857;--warn-ink:#B45309;--danger-ink:#DC2626;
+  --bg:var(--ink-50);--surface:var(--ink-0);--surface-2:var(--ink-100);--surface-3:var(--ink-150);
+  --line:rgba(18,28,43,.09);--line-strong:rgba(18,28,43,.16);
+  --text:var(--ink-900);--text-2:var(--ink-600);--text-3:var(--ink-500);--text-inv:#EAF1F8;
+  --sh-1:0 1px 2px rgba(18,28,43,.04);
+  --sh-2:0 1px 3px rgba(18,28,43,.03),0 6px 18px rgba(18,28,43,.05);
+  --sh-3:0 2px 8px rgba(18,28,43,.04),0 16px 40px rgba(18,28,43,.08);
+  --sh-4:0 8px 26px rgba(18,28,43,.06),0 34px 76px rgba(18,28,43,.11);
+  --sh-5:0 16px 48px rgba(18,28,43,.09),0 56px 120px rgba(18,28,43,.17);
+  --sh-acc:0 8px 24px rgba(13,124,153,.22);
+  --r-xs:7px;--r-sm:10px;--r-md:14px;--r-lg:18px;--r-xl:28px;--r-full:999px;
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;
+  --sp-8:32px;--sp-10:40px;--sp-12:48px;--sp-16:64px;--sp-20:80px;
+  --e-out:cubic-bezier(.22,1,.36,1);--e-in:cubic-bezier(.55,0,1,.45);
+  --e-both:cubic-bezier(.65,0,.35,1);--e-spring:cubic-bezier(.34,1.56,.64,1);
+  --e-glide:cubic-bezier(.16,1,.3,1);--e-snap:cubic-bezier(.3,.9,.2,1);
+  --t-1:120ms;--t-2:180ms;--t-3:260ms;--t-4:380ms;--t-5:560ms;
+  --blur-1:blur(10px) saturate(1.3);--blur-2:blur(18px) saturate(1.4);--blur-3:blur(26px) saturate(1.5);
+  --glass:rgba(255,255,255,.72);--glass-line:rgba(255,255,255,.70);
+  --scrim-1:rgba(18,28,43,.30);--scrim-2:rgba(18,28,43,.44);--scrim-3:rgba(10,16,25,.80);
+  --gutter:64px;--safe-b:env(safe-area-inset-bottom,0px);
+}
+@media(max-width:1180px){:root{--gutter:32px}}
+@media(max-width:760px){:root{--gutter:20px;
+  --blur-2:blur(12px) saturate(1.35);--blur-3:blur(16px) saturate(1.4)}}
+
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{font-family:var(--font);font-size:var(--fs-body);font-weight:var(--fw-body);
+  line-height:var(--lh-body);color:var(--text);background:var(--bg);
+  -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;-webkit-user-select:none;user-select:none}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:2px solid var(--acc-500);outline-offset:2px;border-radius:var(--r-xs)}
+:focus:not(:focus-visible){outline:none}
+::selection{background:rgba(13,124,153,.20)}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--ink-200);border-radius:var(--r-full);
+  border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:var(--ink-300);background-clip:content-box}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;
+    transition-duration:.001ms!important}
+}
+@keyframes riseIn{from{opacity:0;transform:translateY(20px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes cardIn{from{opacity:0;transform:translateY(18px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes pulseRing{0%{box-shadow:0 0 0 0 rgba(14,159,110,.5)}
+  70%{box-shadow:0 0 0 7px rgba(14,159,110,0)}100%{box-shadow:0 0 0 0 rgba(14,159,110,0)}}
+
+/* ══ 台面背景：与沙盘同一张蚀刻图，三站视觉连成一体 ══ */
+.deck-bg{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(120% 90% at 12% 8%,rgba(255,255,255,.92),rgba(255,255,255,0) 55%),
+    radial-gradient(90% 80% at 88% 18%,rgba(205,234,241,.55),rgba(205,234,241,0) 60%),
+    radial-gradient(100% 100% at 50% 110%,rgba(30,44,63,.16),rgba(30,44,63,0) 62%),
+    linear-gradient(168deg,#F8FAFD 0%,#EAF0F6 42%,#DCE5EF 100%)}
+.deck-bg::before{content:'';position:absolute;inset:0;opacity:.5;
+  background-image:
+    linear-gradient(rgba(30,44,63,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(30,44,63,.045) 1px,transparent 1px);
+  background-size:64px 64px;
+  -webkit-mask-image:radial-gradient(130% 110% at 20% 0%,#000 18%,transparent 72%);
+  mask-image:radial-gradient(130% 110% at 20% 0%,#000 18%,transparent 72%)}
+.deck-bg::after{content:'';position:absolute;inset:0;
+  background:url('/cs2/zs/imgs/zs_deck.webp?v=1') center/cover no-repeat;
+  opacity:.9;mix-blend-mode:multiply}
+@media(max-width:760px){.deck-bg::after{background-image:url('/cs2/zs/imgs/zs_deck_s.webp?v=1')}}
+
+.app{position:relative;z-index:1}
+
+/* ══ 顶栏 ══ */
+header.site{position:sticky;top:0;z-index:50;
+  background:rgba(255,255,255,.82);border-bottom:1px solid var(--line);
+  -webkit-backdrop-filter:var(--blur-2);backdrop-filter:var(--blur-2)}
+.h-inner{max-width:1400px;margin:0 auto;padding:0 var(--gutter);height:56px;
+  display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3)}
+.logo-area{display:flex;align-items:center;gap:10px;min-width:0}
+.logo-icon{width:32px;height:32px;flex:none;border-radius:var(--r-sm);
+  display:grid;place-items:center;color:#fff;
+  font-size:var(--fs-small);font-weight:var(--fw-display);letter-spacing:var(--ls-tight);
+  background:linear-gradient(135deg,var(--acc-500),var(--acc-700));box-shadow:var(--sh-acc)}
+.logo-text{font-size:var(--fs-lead);font-weight:var(--fw-bold);letter-spacing:var(--ls-tight)}
+.h-tag{font-size:var(--fs-caption);color:var(--text-3);font-weight:var(--fw-med)}
+
+/* ══ Hero：深色简报板，与沙盘首页的简报卡同一语言 ══ */
+.hero{max-width:1400px;margin:0 auto;padding:var(--sp-8) var(--gutter) 0}
+.hero-card{position:relative;overflow:hidden;border-radius:var(--r-xl);
+  aspect-ratio:30/9;min-height:220px;
+  background:linear-gradient(158deg,#1B283A 0%,#121C2B 52%,#0D1622 100%);
+  box-shadow:var(--sh-4),inset 0 1px 0 rgba(255,255,255,.10);
+  --mx:50%;--my:50%;--rx:0deg;--ry:0deg;
+  transform:perspective(1400px) rotateX(var(--rx)) rotateY(var(--ry));
+  transition:transform var(--t-4) var(--e-out);
+  /* backwards 而非 both：both 的填充帧会钉死 transform，倾角就失效了 */
+  animation:riseIn var(--t-5) var(--e-out) backwards}
+/* 冷光斜切 */
+.hero-card::before{content:'';position:absolute;top:-40%;left:-20%;width:80%;height:160%;
+  pointer-events:none;transform:rotate(18deg);filter:blur(34px);
+  background:linear-gradient(90deg,rgba(79,179,201,.18),rgba(79,179,201,0) 70%)}
+/* 测绘网格，呼应台面 */
+.hero-card::after{content:'';position:absolute;inset:0;pointer-events:none;opacity:.55;
+  background-image:radial-gradient(rgba(255,255,255,.07) 1px,transparent 1px);
+  background-size:22px 22px;
+  -webkit-mask:linear-gradient(100deg,transparent,#000 55%);mask:linear-gradient(100deg,transparent,#000 55%)}
+.hero-ring{position:absolute;right:-56px;top:50%;transform:translateY(-50%);
+  width:330px;height:330px;opacity:.14;color:var(--acc-300);pointer-events:none;z-index:1}
+.hero-inner{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;
+  justify-content:center;padding:0 clamp(28px,5vw,64px)}
+.hero-eyebrow{display:flex;align-items:center;gap:var(--sp-3);margin-bottom:var(--sp-4);
+  font-size:var(--fs-micro);font-weight:var(--fw-bold);letter-spacing:var(--ls-caps);color:var(--acc-300)}
+.hero-eyebrow::before{content:'';width:24px;height:2px;border-radius:1px;
+  background:linear-gradient(90deg,var(--acc-300),rgba(79,179,201,.15))}
+.hero-inner h1{font-size:clamp(28px,4vw,42px);line-height:var(--lh-tight);
+  font-weight:var(--fw-display);letter-spacing:var(--ls-tight);color:#fff;margin-bottom:var(--sp-3)}
+.hero-inner h1 em{font-style:normal;color:var(--acc-300)}
+.hero-inner p{max-width:520px;font-size:var(--fs-body);line-height:var(--lh-loose);
+  color:rgba(234,241,248,.62)}
+.hero-badges{display:flex;flex-wrap:wrap;gap:var(--sp-2);margin-top:var(--sp-5)}
+.hero-badge{padding:5px var(--sp-3);border-radius:var(--r-full);
+  font-size:var(--fs-micro);font-weight:var(--fw-bold);color:rgba(234,241,248,.82);
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.13)}
+
+/* ══ 内容区 ══ */
+.content{max-width:1400px;margin:var(--sp-6) auto 0;padding:0 var(--gutter);
+  display:grid;grid-template-columns:1fr 1fr 340px;gap:var(--sp-5);align-items:start;
+  perspective:1100px}
+
+.card{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:var(--sp-3);
+  min-height:222px;padding:var(--sp-6);border-radius:var(--r-lg);cursor:pointer;
+  background:rgba(255,255,255,.76);border:1px solid var(--glass-line);
+  -webkit-backdrop-filter:var(--blur-1);backdrop-filter:var(--blur-1);
+  box-shadow:var(--sh-2);transform-style:preserve-3d;
+  --mx:50%;--my:50%;--rx:0deg;--ry:0deg;
+  transform:perspective(1100px) rotateX(var(--rx)) rotateY(var(--ry));
+  transition:transform var(--t-4) var(--e-out),box-shadow var(--t-3) var(--e-out),
+             border-color var(--t-3) var(--e-out);
+  animation:cardIn var(--t-5) var(--e-out) backwards}
+.card::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  opacity:0;transition:opacity var(--t-3) var(--e-out);
+  background:radial-gradient(circle 260px at var(--mx) var(--my),
+             rgba(13,124,153,.18),rgba(13,124,153,0) 68%)}
+.card::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  opacity:0;transition:opacity var(--t-3) var(--e-out);mix-blend-mode:overlay;
+  background:linear-gradient(135deg,rgba(255,255,255,.55),rgba(255,255,255,0) 42%)}
+.card.hot{box-shadow:var(--sh-3),0 0 0 1px rgba(13,124,153,.22);
+  border-color:rgba(79,179,201,.5);
+  transition:transform var(--t-1) linear,box-shadow var(--t-3) var(--e-out),
+             border-color var(--t-3) var(--e-out)}
+.card.hot::before,.card.hot::after{opacity:1}
+.card>*{position:relative;z-index:1}
+.card-icon{width:52px;height:52px;border-radius:var(--r-md);
+  display:grid;place-items:center;transform:translateZ(24px);
+  background:var(--acc-50);color:var(--acc-600);
+  transition:transform var(--t-4) var(--e-spring)}
+.card.hot .card-icon{transform:translateZ(24px) scale(1.06) rotate(-3deg)}
+.card h2{font-size:var(--fs-h4);font-weight:var(--fw-bold);letter-spacing:var(--ls-tight);
+  transform:translateZ(14px)}
+.card p{font-size:var(--fs-small);line-height:var(--lh-body);color:var(--text-2);transform:translateZ(8px)}
+.card .tag{width:fit-content;padding:3px 10px;border-radius:var(--r-xs);
+  font-size:var(--fs-micro);font-weight:var(--fw-bold);
+  color:var(--acc-600);background:var(--acc-50);transform:translateZ(8px)}
+.card-arrow{position:absolute;right:var(--sp-6);bottom:var(--sp-6);z-index:1;
+  font-size:var(--fs-h3);color:var(--ink-300);transform:translateZ(20px);
+  transition:color var(--t-3) var(--e-out),transform var(--t-3) var(--e-out)}
+.card.hot .card-arrow{color:var(--acc-500);transform:translateZ(20px) translateX(4px)}
+
+/* ══ 新闻栏 ══ */
+.news{overflow:hidden;min-height:222px;border-radius:var(--r-lg);
+  background:rgba(255,255,255,.76);border:1px solid var(--glass-line);
+  -webkit-backdrop-filter:var(--blur-1);backdrop-filter:var(--blur-1);box-shadow:var(--sh-2);
+  animation:cardIn var(--t-5) var(--e-out) 120ms backwards}
+.news-head{display:flex;align-items:center;gap:var(--sp-2);
+  padding:var(--sp-4) var(--sp-5) var(--sp-3);border-bottom:1px solid var(--line);
+  font-size:var(--fs-small);font-weight:var(--fw-bold)}
+.news-head svg{color:var(--acc-500)}
+.news-list{max-height:340px;overflow-y:auto}
+.news-item{display:block;padding:var(--sp-3) var(--sp-5);border-bottom:1px solid var(--line);
+  cursor:pointer;transition:background var(--t-2) var(--e-snap)}
+.news-item:last-child{border-bottom:none}
+.news-item:hover{background:var(--acc-50)}
+.news-date{display:flex;align-items:center;gap:6px;margin-bottom:3px;
+  font-size:var(--fs-micro);font-weight:var(--fw-med);color:var(--text-3)}
+.news-title{display:block;margin-bottom:2px;font-size:var(--fs-small);
+  font-weight:var(--fw-bold);line-height:var(--lh-snug)}
+.news-desc{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  font-size:var(--fs-caption);line-height:var(--lh-snug);color:var(--text-3)}
+.news-empty{padding:var(--sp-8) var(--sp-5);text-align:center;
+  font-size:var(--fs-caption);color:var(--text-3)}
+.news-dot{width:6px;height:6px;border-radius:50%;flex:none;background:var(--ok);
+  animation:pulseRing 2.6s var(--e-out) infinite}
+
+.footer{max-width:1400px;margin:var(--sp-12) auto 0;padding:var(--sp-5) var(--gutter);
+  text-align:center;font-size:var(--fs-micro);color:var(--text-3);border-top:1px solid var(--line)}
+
+/* ══ 触屏：没有 hover，倾角只会变成误触抖动 ══ */
+@media(hover:none),(pointer:coarse){
+  .card,.hero-card{transform:none}
+  .card::before,.card::after{display:none}
+  .news-item{min-height:56px}
+}
+/* ══ 移动端：重排。三列 → 单列，hero 从固定比例改为按内容撑高 ══ */
+@media(max-width:1100px){
+  .content{grid-template-columns:1fr 1fr}
+  .news{grid-column:1/-1}
+  .news-list{max-height:none;display:grid;grid-template-columns:repeat(3,1fr)}
+  .news-item{border-right:1px solid var(--line)}
+}
+@media(max-width:760px){
+  .h-inner{height:52px}
+  .h-tag{display:none}
+  .hero{padding-top:var(--sp-5)}
+  .hero-card{aspect-ratio:auto;min-height:0;border-radius:var(--r-lg)}
+  .hero-inner{position:relative;padding:var(--sp-6) var(--sp-5)}
+  .hero-ring{width:190px;right:-64px;opacity:.1}
+  .content{grid-template-columns:1fr;gap:var(--sp-3);margin-top:var(--sp-5)}
+  .card{min-height:0;padding:var(--sp-5)}
+  .card-arrow{right:var(--sp-5);bottom:var(--sp-5)}
+  .news-list{grid-template-columns:1fr}
+  .news-item{border-right:none}
+  .footer{margin-top:var(--sp-8)}
+}
+</style>
+</head>
+<body>
+<div class="deck-bg"></div>
+
+<div class="app">
+<header class="site">
+  <div class="h-inner">
+    <a class="logo-area" href="/cs2/">
+      <span class="logo-icon">CS</span>
+      <span class="logo-text">CS2 管家</span>
+    </a>
+    <span class="h-tag">你的 CS2 私人助手</span>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="hero-card" id="heroCard">
+    <svg class="hero-ring" viewBox="0 0 200 200" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <circle cx="100" cy="100" r="92"/><circle cx="100" cy="100" r="60"/><circle cx="100" cy="100" r="28"/>
+      <path d="M100 0v40M100 160v40M0 100h40M160 100h40" stroke-width="3"/>
+    </svg>
+    <div class="hero-inner">
+      <div class="hero-eyebrow">CS2 TOOLKIT</div>
+      <h1>CS2 <em>管家</em></h1>
+      <p>饰品租赁管理 · 3D 战术沙盘，把租来的皮肤和地图道具点位都管得明明白白。</p>
+      <div class="hero-badges">
+        <span class="hero-badge">饰品到期提醒</span>
+        <span class="hero-badge">3D 道具点位</span>
+        <span class="hero-badge">多设备云同步</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="content">
+  <a href="/cs2/zl/" class="card" style="animation-delay:60ms">
+    <div class="card-icon">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+    </div>
+    <h2>我的租赁</h2>
+    <p>追踪你租来的 CS2 饰品，记录平台与到期时间，到期前自动提醒归还，再也不怕忘记还。</p>
+    <span class="tag">饰品租赁 · 到期提醒</span>
+    <span class="card-arrow">&rsaquo;</span>
+  </a>
+
+  <a href="/cs2/zs/" class="card" style="animation-delay:120ms">
+    <div class="card-icon">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+    </div>
+    <h2>3D 战术沙盘</h2>
+    <p>在 3D 地图上规划道具点位：投掷轨迹、弹墙折叠、同点位多道具、区域标注，数据多设备云同步。</p>
+    <span class="tag">3D · three.js</span>
+    <span class="card-arrow">&rsaquo;</span>
+  </a>
+
+  <div class="news">
+    <div class="news-head">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+      CS2 动态
+    </div>
+    <div class="news-list" id="newsList">
+      <div class="news-empty">加载中…</div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">CS2 管家 &copy; 2026</div>
+</div>
+
+<script>
+/* 公开访问，无需登录 */
+
+/* ── 智能感应：与 /cs2/zs/ 完全同一实现，参数也一致 ────────────────────
+   注意入场动画必须用 backwards 而不是 both——both 的填充帧会把 transform
+   永久钉住，magnet 写进去的倾角就再也生效不了。 */
+var FINE_POINTER = matchMedia('(hover:hover) and (pointer:fine)').matches
+                && !matchMedia('(prefers-reduced-motion:reduce)').matches;
+function magnet(el, maxTilt){
+  if(!FINE_POINTER || !el || el.dataset.mag) return; el.dataset.mag='1';
+  var tilt = maxTilt||6, raf=0, box=null;
+  el.addEventListener('pointerenter',function(){box=el.getBoundingClientRect();el.classList.add('hot')});
+  el.addEventListener('pointermove',function(e){
+    if(!box)box=el.getBoundingClientRect();
+    if(raf)return;
+    raf=requestAnimationFrame(function(){
+      raf=0;
+      var x=(e.clientX-box.left)/box.width, y=(e.clientY-box.top)/box.height;
+      el.style.setProperty('--mx',(x*100).toFixed(1)+'%');
+      el.style.setProperty('--my',(y*100).toFixed(1)+'%');
+      el.style.setProperty('--ry',((x-.5)*2*tilt).toFixed(2)+'deg');
+      el.style.setProperty('--rx',((.5-y)*2*tilt).toFixed(2)+'deg');
+    });
+  });
+  el.addEventListener('pointerleave',function(){
+    box=null; el.classList.remove('hot');
+    el.style.setProperty('--rx','0deg'); el.style.setProperty('--ry','0deg');
+  });
+}
+document.querySelectorAll('.card').forEach(function(c){magnet(c,6)});
+magnet(document.getElementById('heroCard'),2);
+
+/* ── Steam 新闻：先渲染兜底再拉网络，任何时候都不会出现空白栏 ── */
+var FALLBACK_NEWS=[
+  {title:'Counter-Strike 2 Update',date:1780013843,contents:'Added ability to bookmark stickers in Cologne 2026 Shop. Added convar r_spectator_flashbang_opacity.'},
+  {title:'IEM Cologne 2026',date:1779410446,contents:'The IEM Cologne 2026 Major is fast approaching. Teams are making final adjustments and fine-tuning their strats.'},
+  {title:'Counter-Strike 2 Update',date:1779410434,contents:'The IEM Cologne 2026 Major Hub is now available. Visit the hub to purchase tournament items and play Pick\'Em.'},
+  {title:'Counter-Strike 2 Update',date:1779318374,contents:'Cache: Adjusted player and grenade collision. Adjusted material blending to improve footstep sounds.'},
+  {title:'Counter-Strike 2 Update',date:1779147368,contents:'Fixed post-processing glitch when switching spectator targets. Fixed stuck x-ray silhouette on player death.'}
+];
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function renderNews(items){
+  var el=document.getElementById('newsList'); if(!el)return;
+  el.innerHTML=items.map(function(n){
+    var d=new Date(n.date*1000);
+    var ds=String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    var txt=String(n.contents||'').replace(/\\/g,' ').replace(/<[^>]+>/g,'').trim();
+    return '<a class="news-item" target="_blank" rel="noopener"'+(n.url?' href="'+esc(n.url)+'"':'')+'>'
+      +'<span class="news-date"><span class="news-dot"></span>'+ds+'</span>'
+      +'<span class="news-title">'+esc(n.title)+'</span>'
+      +'<span class="news-desc">'+esc(txt)+'</span></a>';
+  }).join('');
+}
+renderNews(FALLBACK_NEWS);
+fetch('https://api.steampowered.com/ISteamNews/GetNewsForApp/v0002/?appid=730&count=6&maxlength=180&format=json')
+  .then(function(r){return r.json()})
+  .then(function(d){if(d.appnews&&d.appnews.newsitems)renderNews(d.appnews.newsitems.slice(0,6))})
+  .catch(function(){});
+</script>
+</body>
+</html>

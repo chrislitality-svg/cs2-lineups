@@ -19,3 +19,6 @@ desktop.ini
 
 # 部署脚本记录的生产 md5（本机状态，不进仓库）
 .last-deployed-md5
+
+# 部署脚本记录的生产 md5（本机状态）
+.last-deployed-*.md5
