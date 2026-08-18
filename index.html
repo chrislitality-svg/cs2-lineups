@@ -1758,28 +1758,103 @@ window.addEventListener('unhandledrejection',function(){const n=Date.now();if(n-
 function saveSpots(){localStorage.setItem(SPOTK,JSON.stringify(spots));syncBump(false)}
 /* ===== 云同步：/cs2/sync/（nginx 反代到本机 cs2sync 服务）。没配路由时自动降级为纯本地，绝不影响使用 ===== */
 const SYNC_BASE='/cs2/sync';
-let syncOn=false,_syncAt=0,_metaDirty=false,_imgsDirty=false,_pushTimer=null,_applyingRemote=false,_initializing=true;
+let syncOn=false,_syncAt=0,_metaDirty=false,_pushTimer=null,_applyingRemote=false,_initializing=true;
+/* 图片脏标记按 key 记，不再是一个「有图变了」的布尔——那会导致改一张图重传全部。
+   持久化到 localStorage：加完图还没推就关页面，下次开页仍知道该补推哪几张。 */
+const IMGD_K='cs2_img_dirty_v1';
+let _imgDirty=new Set(),_imgGone=new Set();
+try{const _s=JSON.parse(localStorage.getItem(IMGD_K)||'{}');(_s.d||[]).forEach(k=>_imgDirty.add(k));(_s.g||[]).forEach(k=>_imgGone.add(k));}catch(e){}
+function _saveImgDirty(){try{localStorage.setItem(IMGD_K,JSON.stringify({d:[..._imgDirty],g:[..._imgGone]}));}catch(e){}}
+function imgMarkDirty(k){if(!k)return;_imgDirty.add(k);_imgGone.delete(k);_saveImgDirty();}
+function imgMarkGone(k){if(!k)return;_imgGone.add(k);_imgDirty.delete(k);_saveImgDirty();}
 try{_syncAt=+localStorage.getItem('cs2_sync_at')||0;}catch(e){}
 function setSyncUI(txt,cls){const lc=$('landCloud');if(lc)lc.textContent=cls==='err'?'同步失败 · 本地已存':(syncOn?'云同步已开启':'本地存储 · 可导出同步');const el=$('syncBadge');if(!el)return;el.textContent=txt;el.className='sync-badge'+(cls?' '+cls:'');el.style.display=txt?'flex':'none';}
-function syncBump(imgs){
+function syncBump(imgs,key){
   try{
     if(_applyingRemote||_initializing)return;
     _syncAt=Math.max(Date.now(),_syncAt+1);
     try{localStorage.setItem('cs2_sync_at',String(_syncAt));}catch(e){}
-    _metaDirty=true;if(imgs)_imgsDirty=true;
+    _metaDirty=true;if(imgs&&key)imgMarkDirty(key);
     if(syncOn){clearTimeout(_pushTimer);_pushTimer=setTimeout(syncPush,1000);setSyncUI('待同步…','wait');}
   }catch(e){}
 }
-async function syncGatherImgs(){
-  const o={};
-  for(const d of data){if(!d.imgs)continue;for(const s of ['stand','aim','effect']){if(d.imgs[s]==='idb'){try{const b=await imgGet(imgKey(d.id,s));if(b){const u=await blobToDataURL(b);if(u)o[imgKey(d.id,s)]=u;}}catch(e){}}}}
-  return o;
+/* ═══ 图片增量同步 ═══════════════════════════════════════════════════════
+   旧版把 255 张图 base64 塞进一个 80MB 的 JSON 整包 PUT/GET：改一张图要重传
+   全部，base64 还额外撑大 33%，已经顶到 nginx 对 /cs2/sync/ 的 100m 上限。
+   现在服务端一图一文件，客户端先拉 ~17KB 的索引比对，只传差异，且走二进制。 */
+function imgUrl(k){return SYNC_BASE+'/imgs/'+encodeURIComponent(k);}
+/* 本地索引 key -> 字节数。Blob.size 是元数据、不解码内容，255 张也很快 */
+function imgIndexLocal(){
+  return idbOpen().then(db=>new Promise(res=>{
+    const out={};
+    const rq=db.transaction('imgs').objectStore('imgs').openCursor();
+    rq.onsuccess=e=>{const c=e.target.result;if(!c){res(out);return;}out[c.key]=(c.value&&c.value.size)||0;c.continue();};
+    rq.onerror=()=>res(out);
+  })).catch(()=>({}));
+}
+async function syncFetchIndex(){
+  try{const r=await fetch(SYNC_BASE+'/imgs/index',{cache:'no-store'});
+      if(!r.ok)return null;const j=await r.json();return (j&&j.imgs)||{};}catch(e){return null;}
+}
+async function syncPutOne(k){
+  const b=await imgGet(k);
+  if(!b){_imgDirty.delete(k);return true;}   // 本地已经没有了，别再推
+  const r=await fetch(imgUrl(k),{method:'PUT',
+    headers:{'Content-Type':'application/octet-stream','X-Sync-At':String(_syncAt)},body:b});
+  if(r.ok)_imgDirty.delete(k);
+  return r.ok;
+}
+async function syncGetOne(k){
+  const r=await fetch(imgUrl(k),{cache:'no-store'});
+  if(!r.ok)return false;
+  const b=await r.blob();
+  _applyingRemote=true;                       // 下行写盘别再把自己标脏
+  try{await imgPut(k,b);}finally{_applyingRemote=false;}
+  try{imgInvalidate(k);}catch(e){}
+  return true;
+}
+/* 推：只发脏的那几张 + 删掉的那几张 */
+async function syncPushImgs(){
+  if(!syncOn)return 0;
+  let n=0;
+  for(const k of [..._imgGone]){
+    try{const r=await fetch(imgUrl(k),{method:'DELETE'});if(r.ok){_imgGone.delete(k);n++;}}catch(e){}
+  }
+  for(const k of [..._imgDirty]){
+    try{if(await syncPutOne(k))n++;}catch(e){}
+  }
+  _saveImgDirty();
+  return n;
+}
+/* 双向对齐：索引才 17KB，每次开页比一次不心疼。
+   旧版那个 cs2_imgs_ok「核对过就再也不查」的兜底标记因此可以彻底删掉。 */
+async function syncAlignImgs(){
+  if(!syncOn)return {up:0,down:0};
+  const srv=await syncFetchIndex();
+  if(!srv)return {up:0,down:0};
+  const loc=await imgIndexLocal();
+  let down=0;
+  for(const k in srv){
+    if(_imgDirty.has(k)||_imgGone.has(k))continue;      // 本地有未推的改动，以本地为准
+    if(loc[k]===undefined||loc[k]!==srv[k].sz){
+      try{if(await syncGetOne(k))down++;}catch(e){}
+    }
+  }
+  // 本地有、云端没有 → 待上传。但只推「还有主」的图：
+  // 删道具时旧版没清理 IndexedDB，会留下一堆孤儿图；不设这道门槛的话，
+  // 某台还存着老数据的设备一同步就会把已删道具的图全部复活，而且再也删不掉。
+  const ownedKeys=new Set();
+  for(const d of data){const im=d.imgs||{};for(const sl of ['stand','aim','effect'])if(im[sl]==='idb')ownedKeys.add(imgKey(d.id,sl));}
+  for(const k in loc){ if(!(k in srv) && !_imgGone.has(k) && ownedKeys.has(k)) _imgDirty.add(k); }
+  _saveImgDirty();
+  const up=await syncPushImgs();
+  return {up,down};
 }
 async function syncPush(){
   if(!syncOn)return;
   try{
     if(_metaDirty){await fetch(SYNC_BASE+'/',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({updatedAt:_syncAt,data,spots,places,spawns,walls,favs,tags:tagDefs})});_metaDirty=false;}
-    if(_imgsDirty){await fetch(SYNC_BASE+'/imgs',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({updatedAt:_syncAt,imgs:await syncGatherImgs()})});_imgsDirty=false;}
+    await syncPushImgs();
     setSyncUI('已云同步','ok');
   }catch(e){setSyncUI('同步失败·本地已存','err');}
 }
@@ -1807,7 +1882,7 @@ async function syncPull(){
       _applyingRemote=true;
       data=meta.data||[];spots=meta.spots||[];places=meta.places||{};spawns=meta.spawns||{};walls=meta.walls||{};favs=meta.favs||[];if(Array.isArray(meta.tags))tagDefs=meta.tags;
       save();saveSpots();savePlaces();saveSpawns();saveWalls();saveTags();try{localStorage.setItem(FK,JSON.stringify(favs))}catch(e){}
-      try{const ji=await (await fetch(SYNC_BASE+'/imgs',{cache:'no-store'})).json();if(ji&&ji.imgs){for(const k in ji.imgs){try{await imgPut(k,dataURLtoBlob(ji.imgs[k]))}catch(e){}}}}catch(e){}
+      try{await syncAlignImgs();}catch(e){}
       _syncAt=serverAt;try{localStorage.setItem('cs2_sync_at',String(_syncAt));}catch(e){}
       _applyingRemote=false;
       renderLanding();
@@ -1834,7 +1909,7 @@ async function initSync(){
       _applyingRemote=true;
       data=meta.data||[];spots=meta.spots||[];places=meta.places||{};spawns=meta.spawns||{};walls=meta.walls||{};favs=meta.favs||[];if(Array.isArray(meta.tags))tagDefs=meta.tags;
       save();saveSpots();savePlaces();saveSpawns();saveWalls();saveTags();try{localStorage.setItem(FK,JSON.stringify(favs))}catch(e){}
-      try{const ji=await (await fetch(SYNC_BASE+'/imgs',{cache:'no-store'})).json();if(ji&&ji.imgs){for(const k in ji.imgs){try{await imgPut(k,dataURLtoBlob(ji.imgs[k]))}catch(e){}}}}catch(e){}
+      try{await syncAlignImgs();}catch(e){}
       _syncAt=serverAt;try{localStorage.setItem('cs2_sync_at',String(_syncAt));}catch(e){}
       _applyingRemote=false;
       renderLanding();
@@ -1843,37 +1918,25 @@ async function initSync(){
     }else if(_syncAt>serverAt || (!serverHasData && ((data&&data.length) || Object.keys(places||{}).length || Object.keys(spawns||{}).length))){
       // 仅在「本地确实更新」或「服务器尚无数据(首次种子)」时才推送；原条件含无条件 data.length → 每次开页都全量重传(meta+~数十MB图)=同步失败/卡顿主因，已收紧
       _syncAt=Math.max(Date.now(),_syncAt+1);try{localStorage.setItem('cs2_sync_at',String(_syncAt));}catch(e){} // 种子推送用真实时间戳，别的设备才认为更新
-      _metaDirty=true;_imgsDirty=true;syncPush();
+      _metaDirty=true;
+      // 首次种子：把本地所有图都标成待传，之后由 syncPushImgs 逐张推
+      imgIndexLocal().then(loc=>{for(const k in loc)_imgDirty.add(k);_saveImgDirty();syncPush();});
     }else{setSyncUI('已云同步','ok');}
-    // 启动时图片独立对齐（不依赖 _imgsDirty，确保多设备图片一定同步）
-    // 后台运行，不阻塞页面渲染
+    // 启动时图片对齐：后台跑，不阻塞渲染。
+    // 索引才 ~17KB，每次开页都比一次，所以旧版 cs2_imgs_ok 那个
+    //「核对过就再也不查」的兜底标记已经不需要了（它当年是为了躲开每次下 80MB 整包）。
     (async()=>{
       if(!syncOn)return;
       try{
-        let imgsOk=false; try{imgsOk=localStorage.getItem('cs2_imgs_ok')==='1';}catch(_e){}
-        if(imgsOk && (await imgCountLocal())>0) return; // 已核对过且本机有图 → 跳过每次开页下载整包(~数十MB)；仅首次/换设备/本机缺图时核对
-        const [localCount,ji]=await Promise.all([
-          imgCountLocal(),
-          fetch(SYNC_BASE+'/imgs',{cache:'no-store'}).then(r=>r.json()).catch(()=>({}))
-        ]);
-        const sImgs=ji&&ji.imgs||{};
-        const sCount=Object.keys(sImgs).length;
-        if(localCount>0 && sCount===0){
-          // 本地有图、服务器没有 → 上传
-          const imgs=await syncGatherImgs();
-          if(Object.keys(imgs).length){
-            await fetch(SYNC_BASE+'/imgs',{method:'PUT',headers:{'Content-Type':'application/json'},
-              body:JSON.stringify({updatedAt:_syncAt,imgs})});
-            setSyncUI('图片已同步至云端','ok');
-          }
-        }else if(sCount>0 && localCount===0){
-          // 服务器有图、本地没有 → 下载
-          for(const k in sImgs){try{await imgPut(k,dataURLtoBlob(sImgs[k]));}catch(e){}}
+        const {up,down}=await syncAlignImgs();
+        if(down){
           renderLanding();
           if($('gameView')&&$('gameView').classList.contains('active'))renderDots3D();
-          setSyncUI('图片已从云端恢复','ok');
+          setSyncUI('已补齐 '+down+' 张图','ok');
+        }else if(up){
+          setSyncUI('已上传 '+up+' 张图','ok');
         }
-        try{ if((await imgCountLocal())>0) localStorage.setItem('cs2_imgs_ok','1'); }catch(_e){} // 标记本机图片已与云端核对，后续开页不再重复下载整包
+        try{localStorage.removeItem('cs2_imgs_ok');}catch(_e){}  // 清掉不再使用的旧标记
       }catch(e){}
     })();
   }catch(e){syncOn=false;}
@@ -3809,9 +3872,9 @@ function idbOpen(){
 }
 function imgKey(id,slot){return id+'_'+slot}
 async function imgClearAll(){try{const db=await idbOpen();await new Promise((res,rej)=>{const tx=db.transaction('imgs','readwrite');tx.objectStore('imgs').clear();tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)});if(typeof urlCache!=='undefined')urlCache.clear();}catch(e){}}
-async function imgPut(key,blob){syncBump(true);const db=await idbOpen();return new Promise((res,rej)=>{const tx=db.transaction('imgs','readwrite');tx.objectStore('imgs').put(blob,key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})}
+async function imgPut(key,blob){syncBump(true,key);const db=await idbOpen();return new Promise((res,rej)=>{const tx=db.transaction('imgs','readwrite');tx.objectStore('imgs').put(blob,key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})}
 async function imgGet(key){const db=await idbOpen();return new Promise((res,rej)=>{const rq=db.transaction('imgs').objectStore('imgs').get(key);rq.onsuccess=()=>res(rq.result||null);rq.onerror=()=>rej(rq.error)})}
-async function imgDel(key){syncBump(true);const db=await idbOpen();return new Promise((res,rej)=>{const tx=db.transaction('imgs','readwrite');tx.objectStore('imgs').delete(key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})}
+async function imgDel(key){syncBump(true,key);imgMarkGone(key);const db=await idbOpen();return new Promise((res,rej)=>{const tx=db.transaction('imgs','readwrite');tx.objectStore('imgs').delete(key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})}
 function imgCountLocal(){return idbOpen().then(db=>new Promise(res=>{const rq=db.transaction('imgs').objectStore('imgs').count();rq.onsuccess=()=>res(rq.result||0);rq.onerror=()=>res(0);})).catch(()=>0);}
 let diskManifest=null;
 async function loadManifest(){
