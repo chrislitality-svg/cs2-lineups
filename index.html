@@ -3918,21 +3918,27 @@ function sharpenCanvas(ctx,w,h){
   }catch(e){}
 }
 /* 描点(aim)最重要：保留高清 + 锐化，几乎不降质；站位/效果图才大幅压缩省体积 */
+/* 图片压缩档位
+   2026-08-18 调整：站位图/效果图原来是 1366px + q0.70，实测截图原生就是
+   1600/1920，等于先降分辨率再叠一道有损，压缩痕迹肉眼可见。
+   当年压这么狠是因为同步要把所有图 base64 塞进一个整包 PUT，逼近 nginx 的
+   100m 上限；现在改成了一图一文件的增量同步，这个约束没了，画质调回来。
+   ⚠ 只影响此后新传的图。已存的是当年压过的，原件在上传那一刻就丢了，救不回来，只能重贴。 */
 async function compressImage(file,slot){
   if(!file||!file.type.startsWith('image/'))return file;
   const isAim=slot==='aim';
-  if(file.type==='image/webp'&&file.size<(isAim?500:200)*1024)return file; // 已经很清/很小就不动
+  if(file.type==='image/webp'&&file.size<(isAim?500:400)*1024)return file; // 已经很清/很小就不动
   try{
     const bmp=await createImageBitmap(file);
-    const maxW=isAim?2560:1366; // 描点保留原生清晰度(最高2560)，其它略降省空间
+    const maxW=isAim?2560:1920;  // 站位/效果从 1366 提到 1920：够覆盖 1080p 截图的原生宽度，不再先缩一道
     const k=Math.min(1,maxW/bmp.width);
     const c=document.createElement('canvas');
     c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);
-    const ctx=c.getContext('2d',{willReadFrequently:true});ctx.imageSmoothingQuality='high'; // 描点会 getImageData 锐化，提示浏览器走 CPU 后端不报警/不 deopt
+    const ctx=c.getContext('2d',{willReadFrequently:true});ctx.imageSmoothingQuality='high'; // 会 getImageData 锐化，提示浏览器走 CPU 后端不报警/不 deopt
     ctx.drawImage(bmp,0,0,c.width,c.height);
     bmp.close&&bmp.close();
-    if(isAim)sharpenCanvas(ctx,c.width,c.height); // 描点锐化
-    const blob=await new Promise(r=>c.toBlob(r,'image/webp',isAim?0.95:0.70)); // 描点高质量
+    if(k<1)sharpenCanvas(ctx,c.width,c.height); // 只要真的缩过就锐化，不再只给描点
+    const blob=await new Promise(r=>c.toBlob(r,'image/webp',isAim?0.95:0.88)); // 站位/效果 0.70 -> 0.88
     return(blob&&blob.size<file.size)?blob:file;
   }catch(e){return file}
 }
@@ -5212,7 +5218,9 @@ window.exportAll=async function(){
 };
 /* 一键把已上传的图片重新压缩到更小（省空间、备份/同步更快） */
 window.recompressAll=async function(){
-  if(!await uiConfirm('把「站位点 / 效果图」重新压缩到更小（省空间）。描点(aim)最重要，不会动它的清晰度。','压缩现有图片'))return;
+  /* ⚠ 这个功能现在基本没用了：图片已改增量同步，省那点空间没有意义，
+     而对已经压过的图再压一遍是二次有损，只会更糊。保留入口但先问清楚。 */
+  if(!await uiConfirm('图片已改为增量同步，不再需要为了省流量压缩。\n\n对已压过的图再压一次是二次有损，只会更糊，且不可逆。\n\n确定还要压缩「站位点 / 效果图」吗？','不建议：重新压缩'))return;
   // A2: 先统计总数 + 压缩期间禁用按钮并显示进度，避免用户以为卡住重复点击
   const queue=[];
   for(const d of data){if(!d.imgs)continue;for(const slot of ['stand','effect']){if(d.imgs[slot]==='idb')queue.push([d.id,slot]);}}
