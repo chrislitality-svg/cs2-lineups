@@ -79,8 +79,13 @@ done
 echo "== 5/6 线上复验 =="
 for t in "${TARGETS[@]}"; do IFS='|' read -r name src remote url <<< "$t"
   want "$name" || continue
-  code=$(curl -s -o "$TMP/live-$name.html" -w '%{http_code}' "$url?cb=$RANDOM")
-  [ "$code" = "200" ] || { echo "    ✘ $name HTTP $code" >&2; exit 1; }
+  # 出站网络会偶发 SSL reset（curl 35），一次抖动不该把部署判死，重试 3 次
+  code=""
+  for i in 1 2 3; do
+    code=$(curl -sS --retry 2 --retry-all-errors --connect-timeout 10 --max-time 40              -o "$TMP/live-$name.html" -w '%{http_code}' "$url?cb=$RANDOM" 2>/dev/null) && break
+    echo "    · $name 第 $i 次探测失败，重试"; sleep 3
+  done
+  [ "$code" = "200" ] || { echo "    ✘ $name HTTP ${code:-连接失败}" >&2; exit 1; }
   check_syntax "$name(线上)" "$TMP/live-$name.html" "$WT\live-$name" >/dev/null
   echo "    ✔ $name HTTP 200 且语法正常"
 done
